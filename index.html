@@ -340,22 +340,80 @@
             }
         }
         
-        // ============================================
-        // MAPA
-        // ============================================
+// ============================================
+// MAPA
+// ============================================
+
+async function inicializarMapa() {
+    try {
+        // Crear mapa centrado en Tegucigalpa por defecto
+        mapa = L.map('map').setView([14.0723, -87.1921], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+            maxZoom: 18
+        }).addTo(mapa);
+        console.log('✅ Mapa inicializado');
         
-        function inicializarMapa() {
-            try {
-                mapa = L.map('map').setView([14.0723, -87.1921], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap',
-                    maxZoom: 18
-                }).addTo(mapa);
-                console.log('✅ Mapa inicializado');
-            } catch (error) {
-                console.error('Error inicializando mapa:', error);
-            }
+        // Intentar obtener ubicación del usuario
+        if (navigator.geolocation) {
+            console.log('Solicitando ubicación GPS...');
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    console.log('✅ Ubicación obtenida:', lat, lng);
+                    
+                    // Centrar mapa en ubicación del usuario
+                    mapa.setView([lat, lng], 15);
+                    
+                    // Agregar marcador de ubicación del usuario
+                    L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            html: '📍',
+                            className: 'emoji-marker',
+                            iconSize: [30, 30]
+                        })
+                    })
+                    .addTo(mapa)
+                    .bindPopup('Tu ubicación')
+                    .openPopup();
+                    
+                    // Agregar círculo de precisión
+                    L.circle([lat, lng], {
+                        radius: position.coords.accuracy,
+                        color: '#2563eb',
+                        fillColor: '#93c5fd',
+                        fillOpacity: 0.2
+                    }).addTo(mapa);
+                },
+                (error) => {
+                    console.warn('No se pudo obtener ubicación:', error.message);
+                    
+                    // Mostrar mensaje amigable
+                    if (error.code === 1) {
+                        console.log('Usuario denegó acceso a ubicación');
+                    } else if (error.code === 2) {
+                        console.log('Ubicación no disponible');
+                    } else if (error.code === 3) {
+                        console.log('Tiempo de espera agotado');
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            console.warn('Geolocalización no soportada por el navegador');
         }
+        
+    } catch (error) {
+        console.error('Error inicializando mapa:', error);
+    }
+}
         
         // ============================================
         // TABS
