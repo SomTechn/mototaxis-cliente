@@ -30,12 +30,12 @@
         
         .logo h1 {
             font-size: 2rem;
-            color: var(--primary);
+            color: #2563eb;
             margin-bottom: 0.5rem;
         }
         
         .logo p {
-            color: var(--gray-600);
+            color: #6b7280;
             font-size: 0.875rem;
         }
         
@@ -43,7 +43,7 @@
             display: flex;
             gap: 0.5rem;
             margin-bottom: 2rem;
-            border-bottom: 2px solid var(--gray-200);
+            border-bottom: 2px solid #e5e7eb;
         }
         
         .tab {
@@ -53,19 +53,19 @@
             border: none;
             cursor: pointer;
             font-weight: 500;
-            color: var(--gray-600);
+            color: #6b7280;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
             transition: all 0.2s;
         }
         
         .tab:hover {
-            color: var(--primary);
+            color: #2563eb;
         }
         
         .tab.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
+            color: #2563eb;
+            border-bottom-color: #2563eb;
         }
         
         .tab-content {
@@ -80,16 +80,12 @@
             text-align: center;
             margin-top: 1rem;
             font-size: 0.875rem;
-            color: var(--gray-600);
+            color: #6b7280;
         }
         
         .form-footer a {
-            color: var(--primary);
+            color: #2563eb;
             text-decoration: none;
-        }
-        
-        .form-footer a:hover {
-            text-decoration: underline;
         }
     </style>
 </head>
@@ -105,19 +101,16 @@
             <button class="tab" data-tab="register">Registrarse</button>
         </div>
         
-        <!-- Tab Login -->
         <div id="tab-login" class="tab-content active">
             <form id="formLogin">
                 <div class="form-group">
                     <label class="form-label">Email</label>
-                    <input type="email" class="form-input" id="loginEmail" required 
-                           placeholder="tu@email.com">
+                    <input type="email" class="form-input" id="loginEmail" required placeholder="tu@email.com">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Contraseña</label>
-                    <input type="password" class="form-input" id="loginPassword" required
-                           placeholder="••••••••">
+                    <input type="password" class="form-input" id="loginPassword" required placeholder="••••••••">
                 </div>
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%">
@@ -126,37 +119,31 @@
             </form>
         </div>
         
-        <!-- Tab Registro -->
         <div id="tab-register" class="tab-content">
             <form id="formRegister">
                 <div class="form-group">
                     <label class="form-label">Nombre Completo</label>
-                    <input type="text" class="form-input" id="regNombre" required
-                           placeholder="Juan Pérez">
+                    <input type="text" class="form-input" id="regNombre" required placeholder="Juan Pérez">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Teléfono</label>
-                    <input type="tel" class="form-input" id="regTelefono" required
-                           placeholder="9999-9999">
+                    <input type="tel" class="form-input" id="regTelefono" required placeholder="9999-9999">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Email</label>
-                    <input type="email" class="form-input" id="regEmail" required
-                           placeholder="tu@email.com">
+                    <input type="email" class="form-input" id="regEmail" required placeholder="tu@email.com">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Contraseña</label>
-                    <input type="password" class="form-input" id="regPassword" required minlength="6"
-                           placeholder="Mínimo 6 caracteres">
+                    <input type="password" class="form-input" id="regPassword" required minlength="6" placeholder="Mínimo 6 caracteres">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Confirmar Contraseña</label>
-                    <input type="password" class="form-input" id="regPasswordConfirm" required
-                           placeholder="Repite tu contraseña">
+                    <input type="password" class="form-input" id="regPasswordConfirm" required placeholder="Repite tu contraseña">
                 </div>
                 
                 <button type="submit" class="btn btn-primary" style="width: 100%">
@@ -171,7 +158,6 @@
     </div>
     
     <div id="toast-container"></div>
-    
     <div id="loader" class="loader-fullscreen hidden">
         <div class="loader"></div>
         <p>Cargando...</p>
@@ -180,76 +166,41 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="shared/config.js"></script>
     <script>
-        // Tabs
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                
                 tab.classList.add('active');
                 document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
             });
         });
         
-        // ============================================
-        // LOGIN
-        // ============================================
-        
         document.getElementById('formLogin').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
-            
             document.getElementById('loader').classList.remove('hidden');
             
             try {
-                console.log('Intentando login...');
-                
-                const { data, error } = await window.supabase.auth.signInWithPassword({
-                    email,
-                    password
-                });
-                
+                const { data, error } = await window.supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
                 
-                console.log('Login exitoso:', data.user.id);
-                
-                // Verificar que sea cliente
-                const { data: perfil, error: perfilError } = await window.supabase
-                    .from('perfiles')
-                    .select('rol')
-                    .eq('id', data.user.id)
-                    .single();
-                
-                if (perfilError) {
-                    console.error('Error cargando perfil:', perfilError);
-                    throw new Error('No se pudo verificar tu cuenta');
-                }
-                
-                if (perfil.rol !== 'cliente') {
+                const { data: perfil } = await window.supabase.from('perfiles').select('rol').eq('id', data.user.id).single();
+                if (perfil && perfil.rol !== 'cliente') {
                     await window.supabase.auth.signOut();
                     throw new Error('Este usuario no es un cliente');
                 }
                 
-                UTILS.mostrarNotificacion('¡Bienvenido!', 'Iniciando sesión...', 'success');
-                setTimeout(() => window.location.href = 'index.html', 1000);
-                
+                window.location.href = 'index.html';
             } catch (error) {
-                console.error('Error en login:', error);
-                UTILS.mostrarNotificacion('Error', error.message, 'danger');
+                alert('Error: ' + error.message);
             } finally {
                 document.getElementById('loader').classList.add('hidden');
             }
         });
         
-        // ============================================
-        // REGISTRO
-        // ============================================
-        
         document.getElementById('formRegister').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const nombre = document.getElementById('regNombre').value;
             const telefono = document.getElementById('regTelefono').value;
             const email = document.getElementById('regEmail').value;
@@ -257,165 +208,35 @@
             const passwordConfirm = document.getElementById('regPasswordConfirm').value;
             
             if (password !== passwordConfirm) {
-                UTILS.mostrarNotificacion('Error', 'Las contraseñas no coinciden', 'danger');
-                return;
-            }
-            
-            if (password.length < 6) {
-                UTILS.mostrarNotificacion('Error', 'La contraseña debe tener al menos 6 caracteres', 'danger');
+                alert('Las contraseñas no coinciden');
                 return;
             }
             
             document.getElementById('loader').classList.remove('hidden');
             
             try {
-                console.log('=== INICIANDO REGISTRO ===');
-                console.log('1. Creando usuario en Auth...');
+                const { data: authData, error: authError } = await window.supabase.auth.signUp({ email, password });
+                if (authError) throw authError;
                 
-                // PASO 1: Crear usuario en Auth SIN metadata
-                const { data: authData, error: authError } = await window.supabase.auth.signUp({
-                    email,
-                    password,
-                    options: {
-                        emailRedirectTo: window.location.origin,
-                        data: {}  // Vacío para evitar trigger
-                    }
+                await new Promise(r => setTimeout(r, 1500));
+                
+                const { error: perfilError } = await window.supabase.from('perfiles').insert({
+                    id: authData.user.id, nombre, telefono, rol: 'cliente', activo: true
                 });
                 
-                if (authError) {
-                    console.error('❌ Error en Auth:', authError);
-                    throw authError;
-                }
+                if (perfilError && perfilError.code !== '23505') throw perfilError;
                 
-                if (!authData.user) {
-                    throw new Error('No se pudo crear el usuario');
-                }
+                const { error: clienteError } = await window.supabase.from('clientes').insert({ perfil_id: authData.user.id });
+                if (clienteError && clienteError.code !== '23505') throw clienteError;
                 
-                console.log('✅ Usuario Auth creado:', authData.user.id);
+                alert('Cuenta creada exitosamente');
                 
-                // Esperar un momento
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                
-                // PASO 2: Crear perfil MANUALMENTE
-                console.log('2. Creando perfil...');
-                
-                const { data: perfilData, error: perfilError } = await window.supabase
-                    .from('perfiles')
-                    .insert({
-                        id: authData.user.id,
-                        nombre: nombre,
-                        telefono: telefono,
-                        rol: 'cliente',
-                        activo: true
-                    })
-                    .select()
-                    .single();
-                
-                if (perfilError) {
-                    console.error('❌ Error creando perfil:', perfilError);
-                    
-                    // Si es error de duplicado (23505), el trigger ya lo creó
-                    if (perfilError.code === '23505') {
-                        console.log('⚠️ Perfil ya existe (creado por trigger), continuando...');
-                        
-                        // Actualizar el perfil existente
-                        const { error: updateError } = await window.supabase
-                            .from('perfiles')
-                            .update({
-                                nombre: nombre,
-                                telefono: telefono
-                            })
-                            .eq('id', authData.user.id);
-                        
-                        if (updateError) {
-                            console.error('Error actualizando perfil:', updateError);
-                        }
-                    } else {
-                        throw new Error('Error al crear perfil: ' + perfilError.message);
-                    }
-                } else {
-                    console.log('✅ Perfil creado:', perfilData);
-                }
-                
-                // PASO 3: Crear registro de cliente
-                console.log('3. Creando cliente...');
-                
-                const { data: clienteData, error: clienteError } = await window.supabase
-                    .from('clientes')
-                    .insert({
-                        perfil_id: authData.user.id
-                    })
-                    .select()
-                    .single();
-                
-                if (clienteError) {
-                    console.error('❌ Error creando cliente:', clienteError);
-                    
-                    // Si es error de duplicado, ya existe
-                    if (clienteError.code !== '23505') {
-                        throw new Error('Error al crear cliente: ' + clienteError.message);
-                    } else {
-                        console.log('⚠️ Cliente ya existe, continuando...');
-                    }
-                } else {
-                    console.log('✅ Cliente creado:', clienteData);
-                }
-                
-                console.log('=== REGISTRO COMPLETADO ===');
-                
-                UTILS.mostrarNotificacion('¡Éxito!', 'Cuenta creada correctamente', 'success');
-                
-                // PASO 4: Hacer login automático
-                console.log('4. Iniciando sesión automática...');
-                
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const { data: loginData, error: loginError } = await window.supabase.auth.signInWithPassword({
-                    email,
-                    password
-                });
-                
-                if (loginError) {
-                    console.error('Error en login automático:', loginError);
-                    UTILS.mostrarNotificacion('Cuenta creada', 'Inicia sesión manualmente', 'info');
-                    
-                    // Cambiar a tab de login
-                    document.querySelector('[data-tab="login"]').click();
-                    document.getElementById('loginEmail').value = email;
-                } else {
-                    console.log('✅ Login automático exitoso');
-                    UTILS.mostrarNotificacion('¡Bienvenido!', 'Redirigiendo...', 'success');
-                    setTimeout(() => window.location.href = 'index.html', 1500);
-                }
-                
+                await window.supabase.auth.signInWithPassword({ email, password });
+                window.location.href = 'index.html';
             } catch (error) {
-                console.error('=== ERROR EN REGISTRO ===');
-                console.error(error);
-                
-                let mensajeError = error.message || 'Error al crear cuenta';
-                
-                // Mensajes de error más amigables
-                if (mensajeError.includes('already registered')) {
-                    mensajeError = 'Este email ya está registrado';
-                } else if (mensajeError.includes('Invalid email')) {
-                    mensajeError = 'Email inválido';
-                } else if (mensajeError.includes('Password')) {
-                    mensajeError = 'La contraseña debe tener al menos 6 caracteres';
-                }
-                
-                UTILS.mostrarNotificacion('Error', mensajeError, 'danger');
+                alert('Error: ' + error.message);
             } finally {
                 document.getElementById('loader').classList.add('hidden');
-            }
-        });
-        
-        // Verificar si ya hay sesión
-        window.addEventListener('load', async () => {
-            const { data: { session } } = await window.supabase.auth.getSession();
-            
-            if (session) {
-                console.log('Ya hay sesión activa, redirigiendo...');
-                window.location.href = 'index.html';
             }
         });
     </script>
