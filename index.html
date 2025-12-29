@@ -8,157 +8,59 @@
     <link rel="stylesheet" href="shared/styles.css">
     <style>
         body { margin: 0; font-family: Arial, sans-serif; }
-        
-        .header { 
-            background: #2563eb; 
-            color: white; 
-            padding: 1rem; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-        }
-        
+        .header { background: #2563eb; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
         .header h1 { margin: 0; font-size: 1.5rem; }
+        .header-actions { display: flex; align-items: center; gap: 1rem; }
+        .container { display: flex; height: calc(100vh - 64px); }
+        .sidebar { width: 400px; background: white; overflow-y: auto; padding: 1.5rem; border-right: 1px solid #e5e7eb; }
+        .map-container { flex: 1; position: relative; }
+        #map { width: 100%; height: 100%; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-secondary { background: #6b7280; color: white; }
+        .btn-block { width: 100%; text-align: center; }
+        .action-buttons { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+        .card { background: #f9fafb; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem; }
+        .tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 1rem; }
+        .tab-btn { flex: 1; padding: 0.75rem; background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-weight: 500; color: #6b7280; }
+        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        .emoji-marker { font-size: 2rem; text-align: center; line-height: 30px; }
         
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 1rem; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem; border-bottom: 1px solid #e5e7eb; }
+        .modal-body { padding: 1.5rem; }
+        .modal-footer { padding: 1.5rem; border-top: 1px solid #e5e7eb; display: flex; gap: 0.5rem; justify-content: flex-end; }
+        .btn-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; }
         
-        .container { 
-            display: flex; 
-            height: calc(100vh - 64px); 
-        }
+        /* Tipo de carrera selector */
+        .tipo-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+        .tipo-card { padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 0.5rem; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .tipo-card:hover { border-color: #2563eb; }
+        .tipo-card.active { border-color: #2563eb; background: #eff6ff; }
+        .tipo-card h3 { margin: 0 0 0.5rem 0; font-size: 1.25rem; }
+        .tipo-card .descuento { color: #10b981; font-weight: bold; }
         
-        .sidebar { 
-            width: 400px; 
-            background: white; 
-            overflow-y: auto; 
-            padding: 1.5rem;
-            border-right: 1px solid #e5e7eb;
-        }
+        /* Resumen */
+        .resumen { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 0.5rem; padding: 1rem; margin-top: 1rem; }
+        .resumen-item { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
         
-        .map-container { 
-            flex: 1; 
-            position: relative; 
-        }
+        /* Badge */
+        .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
         
-        #map { 
-            width: 100%; 
-            height: 100%; 
-        }
-        
-        .btn { 
-            padding: 0.75rem 1.5rem; 
-            border: none; 
-            border-radius: 0.5rem; 
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        
-        .btn-primary { 
-            background: #2563eb; 
-            color: white; 
-        }
-        
-        .btn-primary:hover {
-            background: #1d4ed8;
-        }
-        
-        .btn-danger { 
-            background: #ef4444; 
-            color: white; 
-        }
-        
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-        
-        .btn-success {
-            background: #10b981;
-            color: white;
-        }
-        
-        .btn-success:hover {
-            background: #059669;
-        }
-        
-        .welcome {
-            margin-bottom: 1.5rem;
-        }
-        
-        .welcome h2 {
-            font-size: 1.25rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .action-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-        }
-        
-        .btn-block {
-            width: 100%;
-            text-align: center;
-        }
-        
-        .card {
-            background: #f9fafb;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
-        }
-        
-        .card h3 {
-            margin: 0 0 0.5rem 0;
-            font-size: 1rem;
-        }
-        
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #e5e7eb;
-            margin-bottom: 1rem;
-        }
-        
-        .tab-btn {
-            flex: 1;
-            padding: 0.75rem;
-            background: none;
-            border: none;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            font-weight: 500;
-            color: #6b7280;
-        }
-        
-        .tab-btn.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
-        }
-        
-        .tab-pane {
-            display: none;
-        }
-        
-        .tab-pane.active {
-            display: block;
-        }
-        
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                height: 50%;
-            }
-            
-            .container {
-                flex-direction: column;
-            }
-        }
+        /* Notificación */
+        .notification { position: fixed; top: 5rem; right: 1rem; background: white; padding: 1rem 1.5rem; border-radius: 0.5rem; box-shadow: 0 10px 25px rgba(0,0,0,0.2); z-index: 10000; animation: slideIn 0.3s; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
     </style>
 </head>
 <body>
@@ -177,17 +79,9 @@
     
     <div class="container">
         <aside class="sidebar">
-            <div class="welcome">
-                <h2>Panel de Cliente</h2>
-            </div>
-            
             <div class="action-buttons">
-                <button class="btn btn-primary btn-block" onclick="nuevaCarreraDirecta()">
-                    🚖 Nueva Carrera Directa
-                </button>
-                <button class="btn btn-success btn-block" onclick="nuevaCarreraColectiva()">
-                    🚐 Carrera Colectiva
-                    <small style="display:block; font-size:0.75rem">30% descuento</small>
+                <button class="btn btn-primary btn-block" onclick="abrirModalCarrera()">
+                    🚖 Nueva Carrera
                 </button>
             </div>
             
@@ -220,320 +114,80 @@
         </main>
     </div>
     
+    <!-- Modal Nueva Carrera -->
+    <div id="modalCarrera" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nueva Carrera</h2>
+                <button class="btn-close" onclick="cerrarModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <h3>Tipo de Carrera</h3>
+                <div class="tipo-selector">
+                    <div class="tipo-card active" onclick="seleccionarTipo('directo')">
+                        <h3>🚖 Directa</h3>
+                        <p>Solo para ti</p>
+                    </div>
+                    <div class="tipo-card" onclick="seleccionarTipo('colectivo')">
+                        <h3>🚐 Colectiva</h3>
+                        <p class="descuento">30% descuento</p>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="tipoCarrera" value="directo">
+                
+                <div class="form-group">
+                    <label class="form-label">Punto de Recogida</label>
+                    <input type="text" class="form-input" id="origenDir" readonly placeholder="Click 'Seleccionar Origen'">
+                    <button type="button" class="btn btn-secondary" style="width:100%; margin-top:0.5rem" onclick="seleccionarOrigen()">
+                        📍 Seleccionar Origen en Mapa
+                    </button>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Destino</label>
+                    <input type="text" class="form-input" id="destinoDir" readonly placeholder="Click 'Seleccionar Destino'">
+                    <button type="button" class="btn btn-secondary" style="width:100%; margin-top:0.5rem" onclick="seleccionarDestino()">
+                        🏁 Seleccionar Destino en Mapa
+                    </button>
+                </div>
+                
+                <div id="resumenCarrera" class="resumen" style="display:none">
+                    <h3>Resumen del Viaje</h3>
+                    <div class="resumen-item">
+                        <span>Distancia:</span>
+                        <strong id="resDistancia">-</strong>
+                    </div>
+                    <div class="resumen-item">
+                        <span>Tiempo estimado:</span>
+                        <strong id="resTiempo">-</strong>
+                    </div>
+                    <div class="resumen-item">
+                        <span>Tarifa:</span>
+                        <strong id="resPrecio" style="color:#2563eb; font-size:1.25rem">-</strong>
+                    </div>
+                    <div id="descuentoInfo" style="display:none; color:#10b981; font-weight:bold; margin-top:0.5rem">
+                        ¡Incluye 30% de descuento!
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="solicitarCarrera()">Solicitar Carrera</button>
+            </div>
+        </div>
+    </div>
+    
     <div id="toast-container"></div>
+    
+    <!-- Audio para notificaciones -->
+    <audio id="notificationSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS57OihUBELTKXh8bllHAU2jdXvz3knBSh+zPLaizsIGGS56+mjTxEJS6Lg8bllHAU1i9Tvz3YoBSh+y/HbiDgIGGS56+mjUBAKS6Pg8rpnHAU1i9Tv" type="audio/wav">
+    </audio>
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="shared/config.js"></script>
-    <script>
-        let mapa;
-        let usuario = null;
-        let clienteId = null;
-        
-        // ============================================
-        // INICIALIZACIÓN
-        // ============================================
-        
-        async function init() {
-            console.log('=== INICIANDO APP ===');
-            
-            // Esperar a que Supabase esté listo
-            let intentos = 0;
-            while (!window.supabase?.auth && intentos < 50) {
-                await new Promise(r => setTimeout(r, 100));
-                intentos++;
-            }
-            
-            if (!window.supabase?.auth) {
-                console.error('❌ No se pudo conectar a Supabase');
-                alert('Error: No se pudo conectar a Supabase');
-                document.getElementById('loader').classList.add('hidden');
-                return;
-            }
-            
-            console.log('✅ Supabase listo');
-            console.log('Verificando sesión...');
-            
-            try {
-                // Verificar sesión
-                const { data: { session }, error: sessionError } = await window.supabase.auth.getSession();
-                
-                if (sessionError) {
-                    console.error('Error obteniendo sesión:', sessionError);
-                    window.location.href = 'login.html';
-                    return;
-                }
-                
-                if (!session) {
-                    console.log('No hay sesión activa, redirigiendo...');
-                    window.location.href = 'login.html';
-                    return;
-                }
-                
-                console.log('✅ Sesión activa:', session.user.email);
-                usuario = session.user;
-                
-                // Cargar perfil
-                console.log('Cargando perfil...');
-                const { data: perfil, error: perfilError } = await window.supabase
-                    .from('perfiles')
-                    .select('nombre, rol')
-                    .eq('id', session.user.id)
-                    .single();
-                
-                if (perfilError) {
-                    console.error('Error cargando perfil:', perfilError);
-                    alert('Error al cargar tu perfil');
-                    window.location.href = 'login.html';
-                    return;
-                }
-                
-                if (!perfil) {
-                    console.error('Perfil no encontrado');
-                    alert('No se encontró tu perfil');
-                    window.location.href = 'login.html';
-                    return;
-                }
-                
-                if (perfil.rol !== 'cliente') {
-                    console.error('Rol incorrecto:', perfil.rol);
-                    alert('No tienes permisos de cliente');
-                    await window.supabase.auth.signOut();
-                    window.location.href = 'login.html';
-                    return;
-                }
-                
-                console.log('✅ Perfil cargado:', perfil.nombre);
-                document.getElementById('welcomeMsg').textContent = 'Hola, ' + perfil.nombre;
-                
-                // Obtener ID de cliente
-                const { data: cliente } = await window.supabase
-                    .from('clientes')
-                    .select('id')
-                    .eq('perfil_id', usuario.id)
-                    .single();
-                
-                if (cliente) {
-                    clienteId = cliente.id;
-                    console.log('✅ Cliente ID:', clienteId);
-                }
-                
-                // Inicializar mapa
-                console.log('Inicializando mapa...');
-                inicializarMapa();
-                
-                // Cargar datos
-                cargarCarreraActiva();
-                cargarHistorial();
-                
-                // Inicializar tabs
-                inicializarTabs();
-                
-                console.log('=== APP INICIADA CORRECTAMENTE ===');
-                document.getElementById('loader').classList.add('hidden');
-                
-            } catch (error) {
-                console.error('=== ERROR EN INIT ===');
-                console.error(error);
-                alert('Error al iniciar: ' + error.message);
-                document.getElementById('loader').classList.add('hidden');
-            }
-        }
-        
-// ============================================
-// MAPA
-// ============================================
-
-async function inicializarMapa() {
-    try {
-        // Crear mapa centrado en Tegucigalpa por defecto
-        mapa = L.map('map').setView([14.0723, -87.1921], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 18
-        }).addTo(mapa);
-        console.log('✅ Mapa inicializado');
-        
-        // Intentar obtener ubicación del usuario
-        if (navigator.geolocation) {
-            console.log('Solicitando ubicación GPS...');
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    
-                    console.log('✅ Ubicación obtenida:', lat, lng);
-                    
-                    // Centrar mapa en ubicación del usuario
-                    mapa.setView([lat, lng], 15);
-                    
-                    // Agregar marcador de ubicación del usuario
-                    L.marker([lat, lng], {
-                        icon: L.divIcon({
-                            html: '📍',
-                            className: 'emoji-marker',
-                            iconSize: [30, 30]
-                        })
-                    })
-                    .addTo(mapa)
-                    .bindPopup('Tu ubicación')
-                    .openPopup();
-                    
-                    // Agregar círculo de precisión
-                    L.circle([lat, lng], {
-                        radius: position.coords.accuracy,
-                        color: '#2563eb',
-                        fillColor: '#93c5fd',
-                        fillOpacity: 0.2
-                    }).addTo(mapa);
-                },
-                (error) => {
-                    console.warn('No se pudo obtener ubicación:', error.message);
-                    
-                    // Mostrar mensaje amigable
-                    if (error.code === 1) {
-                        console.log('Usuario denegó acceso a ubicación');
-                    } else if (error.code === 2) {
-                        console.log('Ubicación no disponible');
-                    } else if (error.code === 3) {
-                        console.log('Tiempo de espera agotado');
-                    }
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
-            );
-        } else {
-            console.warn('Geolocalización no soportada por el navegador');
-        }
-        
-    } catch (error) {
-        console.error('Error inicializando mapa:', error);
-    }
-}
-        
-        // ============================================
-        // TABS
-        // ============================================
-        
-        function inicializarTabs() {
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-                    
-                    btn.classList.add('active');
-                    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-                });
-            });
-        }
-        
-        // ============================================
-        // CARRERAS
-        // ============================================
-        
-        function nuevaCarreraDirecta() {
-            alert('Funcionalidad en desarrollo: Nueva Carrera Directa');
-            // Aquí irá el código para crear nueva carrera
-        }
-        
-        function nuevaCarreraColectiva() {
-            alert('Funcionalidad en desarrollo: Nueva Carrera Colectiva (30% descuento)');
-            // Aquí irá el código para carrera colectiva
-        }
-        
-        async function cargarCarreraActiva() {
-            if (!clienteId) return;
-            
-            try {
-                const { data, error } = await window.supabase
-                    .from('carreras')
-                    .select('*')
-                    .eq('cliente_id', clienteId)
-                    .in('estado', ['solicitada', 'buscando', 'asignada', 'aceptada', 'en_camino', 'en_curso'])
-                    .order('fecha_solicitud', { ascending: false })
-                    .limit(1)
-                    .single();
-                
-                if (error && error.code !== 'PGRST116') {
-                    console.error('Error cargando carrera activa:', error);
-                    return;
-                }
-                
-                if (data) {
-                    mostrarCarreraActiva(data);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-        
-        function mostrarCarreraActiva(carrera) {
-            const html = `
-                <div class="card">
-                    <h3>${carrera.numero_carrera || 'Carrera'}</h3>
-                    <p><strong>Estado:</strong> ${carrera.estado}</p>
-                    <p><strong>Origen:</strong> ${carrera.origen_direccion}</p>
-                    <p><strong>Destino:</strong> ${carrera.destino_direccion}</p>
-                    <p><strong>Precio:</strong> L ${parseFloat(carrera.precio).toFixed(2)}</p>
-                </div>
-            `;
-            document.getElementById('carreraActiva').innerHTML = html;
-        }
-        
-        async function cargarHistorial() {
-            if (!clienteId) return;
-            
-            try {
-                const { data, error } = await window.supabase
-                    .from('carreras')
-                    .select('*')
-                    .eq('cliente_id', clienteId)
-                    .in('estado', ['completada', 'cancelada_cliente', 'cancelada_conductor'])
-                    .order('fecha_solicitud', { ascending: false })
-                    .limit(10);
-                
-                if (error) {
-                    console.error('Error cargando historial:', error);
-                    return;
-                }
-                
-                if (data && data.length > 0) {
-                    mostrarHistorial(data);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-        
-        function mostrarHistorial(carreras) {
-            const html = carreras.map(c => `
-                <div class="card" style="margin-bottom: 0.5rem;">
-                    <strong>${c.numero_carrera || 'Carrera'}</strong>
-                    <p style="font-size: 0.875rem; color: #6b7280;">${c.estado}</p>
-                    <p style="font-size: 0.875rem;">L ${parseFloat(c.precio).toFixed(2)}</p>
-                </div>
-            `).join('');
-            
-            document.getElementById('historialCarreras').innerHTML = html;
-        }
-        
-        // ============================================
-        // UTILIDADES
-        // ============================================
-        
-        async function cerrarSesion() {
-            if (confirm('¿Cerrar sesión?')) {
-                await window.supabase.auth.signOut();
-                window.location.href = 'login.html';
-            }
-        }
-        
-        // Iniciar cuando la página cargue
-        window.addEventListener('load', init);
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
