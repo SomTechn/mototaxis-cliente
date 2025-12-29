@@ -8,6 +8,11 @@
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
+   .emoji-marker {
+    font-size: 2rem;
+    text-align: center;
+    line-height: 30px;
+}
     --info: #3b82f6;
     
     --gray-50: #f9fafb;
