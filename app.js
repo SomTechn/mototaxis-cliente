@@ -182,6 +182,10 @@ async function obtenerDireccion(lat, lng) {
 }
 
 async function calcularRuta() {
+    // Deshabilitar botón mientras calcula
+    const btn = document.getElementById('btnSolicitar');
+    if(btn) { btn.disabled = true; btn.textContent = "Calculando..."; }
+
     try {
         const url = `https://router.project-osrm.org/route/v1/driving/${origenCoords.lng},${origenCoords.lat};${destinoCoords.lng},${destinoCoords.lat}?overview=full&geometries=geojson`;
         const res = await fetch(url);
@@ -190,11 +194,17 @@ async function calcularRuta() {
         if (data.routes && data.routes[0]) {
             const route = data.routes[0];
             const distanciaKm = route.distance / 1000;
-            const tiempoMin = Math.ceil(route.duration / 60 * 1.3);
+            // +30% tiempo por tráfico/espera
+            const tiempoMin = Math.ceil((route.duration / 60) * 1.3);
             
             const tipo = document.getElementById('tipoCarrera').value;
-            let precio = (typeof PRICING_CONFIG !== 'undefined') ? 
-                PRICING_CONFIG.calcularPrecio(distanciaKm, tipo === 'colectivo') : Math.max(distanciaKm * 15, 30);
+            let precio = 0;
+            
+            if (typeof PRICING_CONFIG !== 'undefined') {
+                precio = PRICING_CONFIG.calcularPrecio(distanciaKm, tipo === 'colectivo');
+            } else {
+                precio = Math.max(distanciaKm * 15, 30);
+            }
             
             document.getElementById('resDistancia').textContent = distanciaKm.toFixed(2) + ' km';
             document.getElementById('resTiempo').textContent = tiempoMin + ' min';
@@ -204,8 +214,14 @@ async function calcularRuta() {
             if (rutaLayer) mapa.removeLayer(rutaLayer);
             rutaLayer = L.geoJSON(route.geometry, { style: { color: '#2563eb', weight: 4 } }).addTo(mapa);
             mapa.fitBounds(rutaLayer.getBounds(), { padding: [50, 50] });
+
+            // HABILITAR BOTÓN AHORA QUE HAY DATOS
+            if(btn) { btn.disabled = false; btn.textContent = "Pedir Mototaxi"; }
         }
-    } catch (e) { console.error(e); }
+    } catch (error) {
+        console.error('Error ruta:', error);
+        if(btn) btn.textContent = "Error al calcular";
+    }
 }
 
 // ============================================
