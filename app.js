@@ -11,6 +11,8 @@ async function init() {
         await cargarDatosCliente();
         
         inicializarMapa();
+        // inicializarEventos(); <-- ELIMINADO PARA EVITAR ERROR
+        
         if (typeof PRICING_CONFIG !== 'undefined') await PRICING_CONFIG.cargarDesdeDB();
         
         await cargarCarreraActiva();
@@ -35,7 +37,9 @@ async function cargarDatosCliente() {
 
 function inicializarMapa() {
     mapa = L.map('map', { zoomControl: false }).setView([15.5048, -88.0250], 14);
+    // Cambiado a OSM normal porque es más estable
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
+    
     mapa.on('click', e => { if (modoSeleccion) setPunto(e.latlng); });
     if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
         const lat = pos.coords.latitude, lng = pos.coords.longitude;
@@ -115,7 +119,6 @@ async function calcularRuta() {
             rutaLayer = L.geoJSON(r.geometry, {style: {color:'black', weight:4}}).addTo(mapa);
             mapa.fitBounds(rutaLayer.getBounds(), {padding:[50,200]});
         } else {
-            // Fallback lineal si falla OSRM
             dist = Math.sqrt(Math.pow(destinoCoords.lat - origenCoords.lat, 2) + Math.pow(destinoCoords.lng - origenCoords.lng, 2)) * 111;
             time = Math.ceil(dist * 3);
         }
@@ -127,14 +130,14 @@ async function calcularRuta() {
         document.getElementById('resPrice').textContent = `L ${precio.toFixed(0)}`;
         btn.textContent = 'Confirmar Mototaxi'; btn.disabled = false;
 
-    } catch(e) { btn.textContent = 'Error ruta (Reintentar)'; btn.disabled = false; }
+    } catch(e) { btn.textContent = 'Reintentar Ruta'; btn.disabled = false; }
 }
 
 async function solicitarCarrera() {
     const p = parseFloat(document.getElementById('resPrice').textContent.replace('L ',''));
     const distStr = document.getElementById('resDistTime').textContent.split(' km')[0];
     
-    // UI Instantánea
+    // CAMBIO DE ESTADO VISUAL INMEDIATO
     document.getElementById('panelRequest').classList.add('hidden');
     document.getElementById('panelActive').classList.remove('hidden');
 
@@ -220,7 +223,7 @@ function suscribirse() {
         if (n.estado === 'completada') {
             document.getElementById('rateModal').style.display = 'flex';
             window.lastTripId = n.id;
-            carreraActiva = null; // Limpiar para que UI regrese a inicio al cerrar modal
+            carreraActiva = null; 
         } else {
             cargarCarreraActiva();
         }
@@ -231,7 +234,7 @@ async function enviarCalificacion() {
     const r = window.rateVal || 5;
     await window.supabaseClient.from('carreras').update({calificacion_conductor: r}).eq('id', window.lastTripId);
     document.getElementById('rateModal').style.display = 'none';
-    cargarCarreraActiva(); // Esto reseteará la UI a inicio
+    cargarCarreraActiva(); 
 }
 
 async function cancelarCarrera() {
@@ -240,7 +243,6 @@ async function cancelarCarrera() {
     }
 }
 
-// UI Helpers
 function setTipo(t) { 
     document.getElementById('tipoCarrera').value = t;
     document.getElementById('btnDirecto').style.border = t==='directo'?'2px solid #2563eb':'1px solid #ddd';
