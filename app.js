@@ -1,14 +1,13 @@
 // ============================================
-// APP CLIENTE - MOTOTAXIS (VERSIÓN FINAL V2)
+// APP CLIENTE - MOTOTAXIS (VERSIÓN MOBILE FIX)
 // ============================================
 
 console.log('=== INICIANDO APP CLIENTE ===');
 
-// --- VARIABLES GLOBALES ---
 let mapa, usuario, clienteId;
 let carreraActiva = null;
 let origenMarker = null, destinoMarker = null, rutaLayer = null, conductorMarker = null;
-let ubicacionActualMarker = null; // Punto azul GPS
+let ubicacionActualMarker = null;
 let modoSeleccion = null;
 let origenCoords = null, destinoCoords = null;
 let trackingInterval = null;
@@ -27,19 +26,11 @@ async function init() {
         
         await cargarDatosCliente();
         
-        // Cargar mapa y GPS
         inicializarMapa();
-        inicializarEventos();
-        
-        // Inyectar estilos CSS para la animación pequeña
         inyectarEstilosAnimacion();
 
-        // Cargar configuración de precios
-        if (typeof PRICING_CONFIG !== 'undefined') {
-            await PRICING_CONFIG.cargarDesdeDB();
-        }
+        if (typeof PRICING_CONFIG !== 'undefined') await PRICING_CONFIG.cargarDesdeDB();
 
-        // Cargar datos iniciales
         await cargarCarreraActiva();
         await cargarHistorial();
         suscribirseACambios();
@@ -60,13 +51,8 @@ async function esperarSupabase() {
         let intentos = 0;
         const interval = setInterval(() => {
             intentos++;
-            if (window.supabaseClient) {
-                clearInterval(interval);
-                resolve();
-            } else if (intentos >= 50) {
-                clearInterval(interval);
-                reject(new Error('Tiempo de espera agotado cargando base de datos'));
-            }
+            if (window.supabaseClient) { clearInterval(interval); resolve(); } 
+            else if (intentos >= 50) { clearInterval(interval); reject(new Error('Timeout DB')); }
         }, 100);
     });
 }
@@ -75,21 +61,14 @@ async function verificarSesion() {
     try {
         const { data: { session }, error } = await window.supabaseClient.auth.getSession();
         if (error) throw error;
-        
-        if (!session) { 
-            window.location.href = 'login.html'; 
-            return false; 
-        }
+        if (!session) { window.location.href = 'login.html'; return false; }
         
         usuario = session.user;
-        
         const { data: perfil, error: perfilError } = await window.supabaseClient
-            .from('perfiles')
-            .select('nombre, rol')
-            .eq('id', usuario.id)
-            .single();
+            .from('perfiles').select('nombre, rol').eq('id', usuario.id).maybeSingle();
             
-        if (perfilError || !perfil || perfil.rol !== 'cliente') {
+        if (perfilError) throw perfilError;
+        if (!perfil || perfil.rol !== 'cliente') {
             alert('No tienes permisos de cliente.');
             await window.supabaseClient.auth.signOut();
             window.location.href = 'login.html';
@@ -97,7 +76,10 @@ async function verificarSesion() {
         }
         
         const welcomeMsg = document.getElementById('welcomeMsg');
-        if (welcomeMsg) welcomeMsg.textContent = 'Hola, ' + perfil.nombre;
+        if (welcomeMsg) {
+            welcomeMsg.style.display = 'inline';
+            welcomeMsg.textContent = perfil.nombre;
+        }
         return true;
     } catch (error) {
         console.error('Error sesión:', error);
@@ -107,19 +89,13 @@ async function verificarSesion() {
 
 async function cargarDatosCliente() {
     const { data: cliente, error } = await window.supabaseClient
-        .from('clientes')
-        .select('id')
-        .eq('perfil_id', usuario.id)
-        .single();
+        .from('clientes').select('id').eq('perfil_id', usuario.id).maybeSingle();
         
-    if (error || !cliente) {
-        console.log('Creando registro de cliente...');
+    if (error) throw error;
+    if (!cliente) {
         const { data: newCliente, error: createError } = await window.supabaseClient
-            .from('clientes')
-            .insert({ perfil_id: usuario.id })
-            .select()
-            .single();
-        if (createError) throw new Error('Error creando datos de cliente');
+            .from('clientes').insert({ perfil_id: usuario.id }).select().single();
+        if (createError) throw new Error('Error creando cliente');
         clienteId = newCliente.id;
     } else {
         clienteId = cliente.id;
@@ -127,77 +103,51 @@ async function cargarDatosCliente() {
 }
 
 // ============================================
-// 2. MAPA Y GEOLOCALIZACIÓN
+// 2. MAPA
 // ============================================
 
 function inicializarMapa() {
     const centro = (typeof MAP_CONFIG !== 'undefined') ? MAP_CONFIG.defaultCenter : [15.5048, -88.0250];
-    
     mapa = L.map('map', { zoomControl: false }).setView(centro, 13);
+    
+    // Zoom arriba derecha
     L.control.zoom({ position: 'topright' }).addTo(mapa);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapa);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
-    }).addTo(mapa);
-    
-    mapa.on('click', (e) => {
-        if (modoSeleccion) seleccionarUbicacion(e.latlng);
-    });
-
+    mapa.on('click', (e) => { if (modoSeleccion) seleccionarUbicacion(e.latlng); });
     obtenerUbicacionActual();
 }
 
 function obtenerUbicacionActual() {
-    if (!navigator.geolocation) {
-        mostrarNotificacion('⚠️ GPS no soportado');
-        return;
-    }
-
+    if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
         (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
-            
             mapa.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
 
-            const puntoAzulHtml = `
-                <div style="background-color:#4285F4; width:15px; height:15px; border-radius:50%; border:2px solid white; box-shadow:0 0 0 10px rgba(66,133,244,0.2);"></div>
-            `;
-            const iconPunto = L.divIcon({
-                className: 'gps-user-location',
-                html: puntoAzulHtml,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
+            const puntoAzulHtml = `<div style="background-color:#4285F4; width:15px; height:15px; border-radius:50%; border:2px solid white; box-shadow:0 0 0 10px rgba(66,133,244,0.2);"></div>`;
+            const iconPunto = L.divIcon({ className: 'gps-user-location', html: puntoAzulHtml, iconSize: [20, 20], iconAnchor: [10, 10] });
 
             if (ubicacionActualMarker) mapa.removeLayer(ubicacionActualMarker);
             ubicacionActualMarker = L.marker([lat, lng], { icon: iconPunto }).addTo(mapa);
             
-            if (!origenCoords) {
-                setTimeout(() => { seleccionarUbicacion({ lat, lng }, true); }, 2000);
-            }
+            if (!origenCoords) setTimeout(() => { seleccionarUbicacion({ lat, lng }, true); }, 2000);
         },
-        (error) => {
-            console.warn('Error GPS:', error);
-            mostrarNotificacion('⚠️ Activa el GPS para mejor experiencia.');
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        () => console.warn('GPS no disponible'), { enableHighAccuracy: true }
     );
 }
 
 function seleccionarOrigen() {
     modoSeleccion = 'origen';
-    document.body.style.cursor = 'crosshair';
     cerrarModal();
-    mostrarNotificacion('📍 Toca en el mapa el ORIGEN');
+    mostrarNotificacion('📍 Marca el ORIGEN en el mapa');
 }
 
 function seleccionarDestino() {
     modoSeleccion = 'destino';
-    document.body.style.cursor = 'crosshair';
     cerrarModal();
-    mostrarNotificacion('🏁 Toca en el mapa el DESTINO');
+    mostrarNotificacion('🏁 Marca el DESTINO en el mapa');
 }
 
 async function seleccionarUbicacion(latlng, esAutomatico = false) {
@@ -209,39 +159,26 @@ async function seleccionarUbicacion(latlng, esAutomatico = false) {
     if (modoSeleccion === 'origen') {
         origenCoords = { lat: latlng.lat, lng: latlng.lng, dir: direccion };
         if (origenMarker) mapa.removeLayer(origenMarker);
-        
-        origenMarker = L.marker([latlng.lat, latlng.lng], {
-            icon: L.divIcon({ html: '📍', className: 'emoji-marker' })
-        }).addTo(mapa);
-        
+        origenMarker = L.marker([latlng.lat, latlng.lng], { icon: L.divIcon({ html: '📍', className: 'emoji-marker' }) }).addTo(mapa);
         document.getElementById('origenDir').value = direccion;
     } else {
         destinoCoords = { lat: latlng.lat, lng: latlng.lng, dir: direccion };
         if (destinoMarker) mapa.removeLayer(destinoMarker);
-        
-        destinoMarker = L.marker([latlng.lat, latlng.lng], {
-            icon: L.divIcon({ html: '🏁', className: 'emoji-marker' })
-        }).addTo(mapa);
-        
+        destinoMarker = L.marker([latlng.lat, latlng.lng], { icon: L.divIcon({ html: '🏁', className: 'emoji-marker' }) }).addTo(mapa);
         document.getElementById('destinoDir').value = direccion;
     }
     
     modoSeleccion = null;
-    document.body.style.cursor = 'default';
-    
     if (!esAutomatico) abrirModalCarrera();
     if (origenCoords && destinoCoords) await calcularRuta();
 }
 
 async function obtenerDireccion(lat, lng) {
     try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
-        const res = await fetch(url);
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
         const data = await res.json();
         return data.display_name?.split(',')[0] || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    } catch {
-        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-    }
+    } catch { return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
 }
 
 async function calcularRuta() {
@@ -256,13 +193,8 @@ async function calcularRuta() {
             const tiempoMin = Math.ceil(route.duration / 60 * 1.3);
             
             const tipo = document.getElementById('tipoCarrera').value;
-            let precio = 0;
-            
-            if (typeof PRICING_CONFIG !== 'undefined') {
-                precio = PRICING_CONFIG.calcularPrecio(distanciaKm, tipo === 'colectivo');
-            } else {
-                precio = Math.max(distanciaKm * 15, 30);
-            }
+            let precio = (typeof PRICING_CONFIG !== 'undefined') ? 
+                PRICING_CONFIG.calcularPrecio(distanciaKm, tipo === 'colectivo') : Math.max(distanciaKm * 15, 30);
             
             document.getElementById('resDistancia').textContent = distanciaKm.toFixed(2) + ' km';
             document.getElementById('resTiempo').textContent = tiempoMin + ' min';
@@ -273,20 +205,15 @@ async function calcularRuta() {
             rutaLayer = L.geoJSON(route.geometry, { style: { color: '#2563eb', weight: 4 } }).addTo(mapa);
             mapa.fitBounds(rutaLayer.getBounds(), { padding: [50, 50] });
         }
-    } catch (error) {
-        console.error('Error ruta:', error);
-    }
+    } catch (e) { console.error(e); }
 }
 
 // ============================================
-// 3. GESTIÓN DE CARRERAS (CRUD)
+// 3. LOGICA CARRERAS
 // ============================================
 
 async function solicitarCarrera() {
-    if (!origenCoords || !destinoCoords) {
-        mostrarNotificacion('⚠️ Selecciona origen y destino');
-        return;
-    }
+    if (!origenCoords || !destinoCoords) { mostrarNotificacion('⚠️ Faltan datos'); return; }
     
     const tipo = document.getElementById('tipoCarrera').value;
     const distancia = parseFloat(document.getElementById('resDistancia').textContent);
@@ -295,37 +222,20 @@ async function solicitarCarrera() {
     
     try {
         mostrarLoader();
-        
-        const { error } = await window.supabaseClient
-            .from('carreras')
-            .insert({
-                tipo,
-                cliente_id: clienteId,
-                origen_direccion: origenCoords.dir,
-                origen_lat: origenCoords.lat,
-                origen_lng: origenCoords.lng,
-                destino_direccion: destinoCoords.dir,
-                destino_lat: destinoCoords.lat,
-                destino_lng: destinoCoords.lng,
-                distancia_km: distancia,
-                tiempo_estimado_min: tiempo,
-                precio,
-                estado: 'buscando'
-            });
+        const { error } = await window.supabaseClient.from('carreras').insert({
+            tipo, cliente_id: clienteId,
+            origen_direccion: origenCoords.dir, origen_lat: origenCoords.lat, origen_lng: origenCoords.lng,
+            destino_direccion: destinoCoords.dir, destino_lat: destinoCoords.lat, destino_lng: destinoCoords.lng,
+            distancia_km: distancia, tiempo_estimado_min: tiempo, precio, estado: 'buscando'
+        });
         
         if (error) throw error;
-        
         cerrarModal();
-        // NOTA: No limpiamos el mapa aquí para que el cliente vea la ruta mientras espera
-        mostrarNotificacion('✅ Buscando conductor...');
+        mostrarNotificacion('✅ Solicitud enviada');
         await cargarCarreraActiva();
         
-    } catch (error) {
-        console.error('Error:', error);
-        mostrarError(error.message);
-    } finally {
-        ocultarLoader();
-    }
+    } catch (e) { mostrarError(e.message); } 
+    finally { ocultarLoader(); }
 }
 
 async function cargarCarreraActiva() {
@@ -337,67 +247,55 @@ async function cargarCarreraActiva() {
             .in('estado', ['solicitada', 'buscando', 'asignada', 'aceptada', 'en_camino', 'en_curso'])
             .order('fecha_solicitud', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
             
         const container = document.getElementById('carreraActiva');
-        // NOTA: Ya no usamos el div separado "searchingAnimation", usamos la tarjeta integrada
-        if (document.getElementById('searchingAnimation')) {
-             document.getElementById('searchingAnimation').classList.add('hidden');
-        }
         
-        if (error && error.code === 'PGRST116') {
+        if (error) throw error;
+        
+        if (!data) {
             carreraActiva = null;
-            container.innerHTML = '<p style="text-align:center;color:#6b7280;margin-top:2rem">No tienes viajes en curso</p>';
-            container.classList.remove('hidden');
+            container.innerHTML = '<p style="text-align:center;color:#6b7280;margin-top:2rem">No tienes viajes activos</p>';
             detenerTracking();
             return;
         }
 
-        if (error) throw error;
+        carreraActiva = data;
         
-        if (data) {
-            carreraActiva = data;
-            
-            // Si hay carrera activa y no tenemos la ruta dibujada (ej. recarga de pagina), intentar dibujarla
-            if (!rutaLayer && data.origen_lat && data.destino_lat) {
-                 // Recuperar ruta visualmente (opcional pero recomendado)
-                 origenCoords = { lat: data.origen_lat, lng: data.origen_lng };
-                 destinoCoords = { lat: data.destino_lat, lng: data.destino_lng };
-                 // Aquí podríamos volver a pintar marcadores, pero lo dejaremos simple por ahora
-            }
-
-            container.classList.remove('hidden');
-            
-            if (data.estado === 'buscando' || data.estado === 'solicitada') {
-                mostrarTarjetaBusqueda(data); // Tarjeta compacta con animación
-            } else {
-                await mostrarCarreraActiva(data);
-                iniciarTracking(data);
-            }
+        // Recuperar ruta visual si se perdió
+        if (!rutaLayer && data.origen_lat && data.destino_lat) {
+             origenCoords = { lat: data.origen_lat, lng: data.origen_lng };
+             destinoCoords = { lat: data.destino_lat, lng: data.destino_lng };
         }
-    } catch (error) {
-        console.error('Error carrera activa:', error);
-    }
+
+        // LÓGICA DE UI
+        if (data.estado === 'buscando' || data.estado === 'solicitada') {
+            mostrarTarjetaBusqueda(data);
+        } else {
+            await mostrarCarreraActiva(data);
+            iniciarTracking(data);
+        }
+
+        // AUTO EXPANDIR PANEL (Móvil)
+        if (window.expandSidebar) window.expandSidebar();
+
+    } catch (e) { console.error(e); }
 }
 
-// Nueva tarjeta compacta con animación integrada
 function mostrarTarjetaBusqueda(carrera) {
     const html = `
-        <div class="card" style="margin-top: 1rem; border-top: 4px solid #f59e0b;">
+        <div class="card" style="border-top: 4px solid #f59e0b;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <div class="mini-pulse-ring"></div> <h3 style="margin: 0; font-size: 1.1rem; color: #f59e0b;">Buscando Conductor...</h3>
+                <div class="mini-pulse-ring"></div>
+                <h3 style="margin: 0; font-size: 1.1rem; color: #f59e0b;">Buscando...</h3>
             </div>
-            
-            <p style="font-size: 0.85em; color: #666; margin-bottom: 10px;">
-                Conectando con mototaxis cercanas...
-            </p>
             
             <div style="margin: 10px 0; padding: 10px; background: #f9fafb; border-radius: 8px; font-size: 0.9em;">
                 <div style="margin-bottom: 5px;"><strong>📍 Destino:</strong> ${carrera.destino_direccion.substring(0, 30)}...</div>
                 <div><strong>💰 Precio:</strong> L ${carrera.precio}</div>
             </div>
             
-            <button class="btn btn-danger" style="width:100%; font-size: 0.9em; padding: 8px;" onclick="cancelarCarrera('${carrera.id}')">
+            <button class="btn btn-danger" style="width:100%; font-size: 0.9em; padding: 10px;" onclick="cancelarCarrera('${carrera.id}')">
                 ✕ Cancelar Solicitud
             </button>
         </div>
@@ -411,286 +309,154 @@ async function mostrarCarreraActiva(carrera) {
         const { data } = await window.supabaseClient
             .from('conductores')
             .select('placa, modelo_moto, color, perfil:perfiles(nombre, telefono)')
-            .eq('id', carrera.conductor_id)
-            .single();
+            .eq('id', carrera.conductor_id).maybeSingle();
         conductorInfo = data;
     }
     
-    const titulos = {
-        'asignada': 'Conductor Asignado',
-        'aceptada': '¡Conductor Aceptó!',
-        'en_camino': '🚖 Conductor en Camino',
-        'en_curso': '🚀 Viaje en Curso'
-    };
-    
+    const estados = { 'asignada': 'Asignado', 'aceptada': 'Aceptado', 'en_camino': 'En Camino', 'en_curso': 'En Curso' };
     const color = carrera.estado === 'en_curso' ? '#10b981' : '#3b82f6';
     
     let html = `
         <div class="card" style="border-top: 4px solid ${color};">
-            <h3>${titulos[carrera.estado] || carrera.estado}</h3>
+            <h3>${estados[carrera.estado] || carrera.estado}</h3>
             
             <div style="margin: 10px 0; padding: 10px; background: #f0f9ff; border-radius: 8px;">
                 <p><strong>Destino:</strong> ${carrera.destino_direccion}</p>
-                <p><strong>Precio:</strong> <span style="font-size:1.2em; color:${color}; font-weight:bold">L ${carrera.precio}</span></p>
+                <p><strong>Precio:</strong> L ${carrera.precio}</p>
             </div>
     `;
     
     if (conductorInfo) {
         html += `
-            <div style="display:flex; align-items:center; gap:15px; margin-top:15px; padding-top:15px; border-top:1px solid #eee">
-                <div style="font-size:45px; background:#f3f4f6; padding:10px; border-radius:50%">🏍️</div>
+            <div style="display:flex; align-items:center; gap:15px; margin-top:10px; padding-top:10px; border-top:1px solid #eee">
+                <div style="font-size:35px;">🏍️</div>
                 <div>
-                    <p style="font-weight:bold; font-size:1.1em; margin:0">${conductorInfo.perfil.nombre}</p>
-                    <p style="margin:5px 0 0 0; font-size:0.9em; color:#666">
-                        ${conductorInfo.modelo_moto} ${conductorInfo.color} <br>
-                        <span style="background:#eee; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:0.8em">PLACA: ${conductorInfo.placa}</span>
-                    </p>
+                    <p style="font-weight:bold; margin:0">${conductorInfo.perfil.nombre}</p>
+                    <p style="margin:0; font-size:0.8em; color:#666">${conductorInfo.modelo_moto} • ${conductorInfo.placa}</p>
                 </div>
             </div>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px">
-                <a href="tel:${conductorInfo.perfil.telefono}" class="btn btn-primary" style="justify-content:center;">📞 Llamar</a>
-                <a href="https://wa.me/504${conductorInfo.perfil.telefono.replace(/-/g, '')}" target="_blank" class="btn btn-success" style="justify-content:center;">💬 WhatsApp</a>
+            <div style="display:flex; gap:10px; margin-top:15px">
+                <a href="tel:${conductorInfo.perfil.telefono}" class="btn btn-primary" style="flex:1; justify-content:center;">📞</a>
+                <a href="https://wa.me/504${conductorInfo.perfil.telefono.replace(/-/g, '')}" class="btn btn-success" style="flex:1; justify-content:center;">💬</a>
             </div>
         `;
     }
     
     if (carrera.estado !== 'en_curso') {
         html += `<button class="btn btn-secondary" style="width:100%; margin-top:10px; color:#ef4444;" onclick="cancelarCarrera('${carrera.id}')">Cancelar Viaje</button>`;
-    } else {
-         html += `<div style="margin-top:10px; text-align:center; color:#10b981; font-weight:bold">¡Disfruta tu viaje!</div>`;
     }
     html += `</div>`;
     document.getElementById('carreraActiva').innerHTML = html;
 }
 
-// Historial
 async function cargarHistorial() {
     try {
-        const { data, error } = await window.supabaseClient
-            .from('carreras')
-            .select('*')
-            .eq('cliente_id', clienteId)
+        const { data } = await window.supabaseClient
+            .from('carreras').select('*').eq('cliente_id', clienteId)
             .in('estado', ['completada', 'cancelada_cliente', 'cancelada_conductor'])
-            .order('fecha_solicitud', { ascending: false })
-            .limit(10);
+            .order('fecha_solicitud', { ascending: false }).limit(5);
             
-        if (error) throw error;
-        
         const divHistorial = document.getElementById('historialCarreras');
         if (!data || data.length === 0) {
-            divHistorial.innerHTML = '<p style="text-align:center; color:#999">No hay historial reciente.</p>';
+            divHistorial.innerHTML = '<p style="text-align:center; color:#999; font-size:0.9em">Sin historial reciente.</p>';
             return;
         }
         
-        divHistorial.innerHTML = data.map(c => {
-            const fecha = new Date(c.fecha_solicitud).toLocaleDateString();
-            const esCompletada = c.estado === 'completada';
-            return `
-            <div class="card mb-1" style="border-left: 4px solid ${esCompletada ? '#10b981' : '#ef4444'}">
-                <div style="display:flex; justify-content:space-between">
-                    <strong>${fecha}</strong>
-                    <span style="font-size:0.8em">${esCompletada ? 'Completado' : 'Cancelado'}</span>
+        divHistorial.innerHTML = data.map(c => `
+            <div class="card mb-1" style="border-left: 4px solid ${c.estado === 'completada' ? '#10b981' : '#ef4444'}; padding:0.8rem">
+                <div style="display:flex; justify-content:space-between; font-size:0.85em">
+                    <strong>${new Date(c.fecha_solicitud).toLocaleDateString()}</strong>
+                    <span>${c.estado === 'completada' ? 'Completado' : 'Cancelado'}</span>
                 </div>
-                <p style="font-size:0.9em; margin:5px 0">${c.destino_direccion}</p>
-                <strong style="color:#2563eb">L ${c.precio}</strong>
+                <p style="font-size:0.8em; margin:5px 0">${c.destino_direccion.substring(0,25)}...</p>
+                <strong style="color:#2563eb; font-size:0.9em">L ${c.precio}</strong>
             </div>
-            `;
-        }).join('');
+        `).join('');
     } catch (e) { console.error(e); }
 }
 
 async function cancelarCarrera(id) {
-    if(!confirm('¿Seguro deseas cancelar?')) return;
+    if(!confirm('¿Cancelar viaje?')) return;
     mostrarLoader();
     try {
-        await window.supabaseClient.from('carreras')
-            .update({ estado: 'cancelada_cliente' }).eq('id', id);
-        
+        await window.supabaseClient.from('carreras').update({ estado: 'cancelada_cliente' }).eq('id', id);
         mostrarNotificacion('Viaje cancelado');
-        
-        // AQUÍ ESTÁ EL CAMBIO IMPORTANTE:
-        limpiarMapaCompleto(); // Borrar ruta y marcadores
-        
+        limpiarMapaCompleto();
         await cargarCarreraActiva();
-    } catch (e) {
-        mostrarError(e.message);
-    } finally {
-        ocultarLoader();
-    }
+    } catch (e) { mostrarError(e.message); } 
+    finally { ocultarLoader(); }
 }
 
-// Nueva función helper para limpiar todo el mapa
 function limpiarMapaCompleto() {
-    // 1. Borrar ruta
-    if (rutaLayer) {
-        mapa.removeLayer(rutaLayer);
-        rutaLayer = null;
-    }
-    // 2. Borrar marcadores origen/destino
-    if (origenMarker) {
-        mapa.removeLayer(origenMarker);
-        origenMarker = null;
-    }
-    if (destinoMarker) {
-        mapa.removeLayer(destinoMarker);
-        destinoMarker = null;
-    }
-    // 3. Resetear variables
-    origenCoords = null;
-    destinoCoords = null;
+    if (rutaLayer) { mapa.removeLayer(rutaLayer); rutaLayer = null; }
+    if (origenMarker) { mapa.removeLayer(origenMarker); origenMarker = null; }
+    if (destinoMarker) { mapa.removeLayer(destinoMarker); destinoMarker = null; }
+    origenCoords = null; destinoCoords = null;
     document.getElementById('origenDir').value = '';
     document.getElementById('destinoDir').value = '';
     document.getElementById('resumenCarrera').style.display = 'none';
 }
 
-// ============================================
-// 4. TRACKING & REALTIME
-// ============================================
-
 function iniciarTracking(carrera) {
     if (trackingInterval) clearInterval(trackingInterval);
     if (!carrera.conductor_id) return;
-    
     trackingInterval = setInterval(async () => {
-        try {
-            const { data } = await window.supabaseClient
-                .from('conductores')
-                .select('latitud, longitud, rumbo')
-                .eq('id', carrera.conductor_id)
-                .single();
-            if (data && data.latitud) actualizarConductorEnMapa(data.latitud, data.longitud, data.rumbo);
-        } catch (e) { }
+        const { data } = await window.supabaseClient.from('conductores')
+            .select('latitud, longitud, rumbo').eq('id', carrera.conductor_id).maybeSingle();
+        if (data && data.latitud) actualizarConductorEnMapa(data.latitud, data.longitud, data.rumbo);
     }, 4000);
 }
 
 function detenerTracking() {
     if (trackingInterval) clearInterval(trackingInterval);
-    if (conductorMarker) {
-        mapa.removeLayer(conductorMarker);
-        conductorMarker = null;
-    }
+    if (conductorMarker) { mapa.removeLayer(conductorMarker); conductorMarker = null; }
 }
 
 function actualizarConductorEnMapa(lat, lng, rumbo) {
     const iconHtml = `<div style="transform: rotate(${rumbo || 0}deg); font-size: 30px;">🏍️</div>`;
     const motoIcon = L.divIcon({ html: iconHtml, className: 'emoji-marker', iconSize: [40, 40] });
-
-    if (conductorMarker) {
-        conductorMarker.setLatLng([lat, lng]);
-        conductorMarker.setIcon(motoIcon);
-    } else {
-        conductorMarker = L.marker([lat, lng], { icon: motoIcon }).addTo(mapa);
-    }
+    if (conductorMarker) { conductorMarker.setLatLng([lat, lng]); conductorMarker.setIcon(motoIcon); }
+    else { conductorMarker = L.marker([lat, lng], { icon: motoIcon }).addTo(mapa); }
 }
 
 function suscribirseACambios() {
-    window.supabaseClient
-        .channel('cliente-updates')
-        .on('postgres_changes', { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'carreras', 
-            filter: `cliente_id=eq.${clienteId}` 
-        }, 
+    window.supabaseClient.channel('cliente-updates')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'carreras', filter: `cliente_id=eq.${clienteId}` }, 
         (payload) => {
             const nueva = payload.new;
-            if (nueva.estado === 'aceptada') {
-                mostrarNotificacion('¡Conductor encontrado! 🎉');
-                reproducirSonido();
-            } else if (nueva.estado === 'en_camino') {
-                mostrarNotificacion('El conductor está cerca 📍');
-            } else if (nueva.estado === 'completada') {
-                alert('Viaje finalizado. Precio: L ' + nueva.precio);
-                detenerTracking();
-            }
+            if (nueva.estado === 'aceptada') { mostrarNotificacion('¡Conductor encontrado! 🎉'); reproducirSonido(); }
+            else if (nueva.estado === 'en_camino') mostrarNotificacion('Conductor cerca 📍');
+            else if (nueva.estado === 'completada') { alert('Viaje finalizado. L ' + nueva.precio); detenerTracking(); limpiarMapaCompleto(); }
             cargarCarreraActiva();
-        })
-        .subscribe();
+        }).subscribe();
 }
-
-// ============================================
-// 5. UTILIDADES Y ESTILOS
-// ============================================
 
 function inyectarEstilosAnimacion() {
     const style = document.createElement('style');
     style.innerHTML = `
-        .mini-pulse-ring {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #fcd34d;
-            position: relative;
-            display: inline-block;
-        }
-        .mini-pulse-ring::before {
-            content: '';
-            position: absolute;
-            left: -5px; top: -5px;
-            width: 30px; height: 30px;
-            border-radius: 50%;
-            border: 2px solid #f59e0b;
-            animation: mini-pulse 1.5s infinite;
-        }
-        @keyframes mini-pulse {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(1.2); opacity: 0; }
-        }
+        .mini-pulse-ring { width: 15px; height: 15px; border-radius: 50%; background: #fcd34d; position: relative; display: inline-block; }
+        .mini-pulse-ring::before { content: ''; position: absolute; left: -5px; top: -5px; width: 25px; height: 25px; border-radius: 50%; border: 2px solid #f59e0b; animation: mini-pulse 1.5s infinite; }
+        @keyframes mini-pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.2); opacity: 0; } }
     `;
     document.head.appendChild(style);
 }
 
 function mostrarLoader() { document.getElementById('loader').classList.remove('hidden'); }
 function ocultarLoader() { document.getElementById('loader').classList.add('hidden'); }
-
-function mostrarError(mensaje) {
-    console.error(mensaje);
-    mostrarNotificacion('❌ ' + mensaje);
+function mostrarError(m) { console.error(m); mostrarNotificacion('❌ ' + m); }
+function mostrarNotificacion(m) {
+    const n = document.createElement('div'); n.className = 'notification'; n.textContent = m;
+    n.style.cssText = `position: fixed; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10000; animation: slideIn 0.3s;`;
+    document.body.appendChild(n); setTimeout(() => n.remove(), 4000);
 }
-
-function mostrarNotificacion(msg) {
-    const n = document.createElement('div');
-    n.className = 'notification';
-    n.textContent = msg;
-    n.style.cssText = `
-        position: fixed; top: 20px; right: 20px; 
-        background: white; padding: 15px; 
-        border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 9999; animation: slideIn 0.3s;
-    `;
-    document.body.appendChild(n);
-    setTimeout(() => n.remove(), 4000);
-}
-
 function reproducirSonido() { try { document.getElementById('notificationSound').play(); } catch(e){} }
-
-function inicializarEventos() {
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-            btn.classList.add('active');
-            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-        });
-    });
-}
-
 function abrirModalCarrera() { document.getElementById('modalCarrera').classList.add('active'); }
 function cerrarModal() { document.getElementById('modalCarrera').classList.remove('active'); limpiarSeleccion(); }
-
-// Limpieza para el modal de selección (no borra si ya hay ruta aceptada)
-function limpiarSeleccion() {
-    if (modoSeleccion) return;
-    document.getElementById('resumenCarrera').style.display = 'none';
-}
-
+function limpiarSeleccion() { if (modoSeleccion) return; document.getElementById('resumenCarrera').style.display = 'none'; }
 function seleccionarTipo(t) {
     document.getElementById('tipoCarrera').value = t;
     document.querySelectorAll('.tipo-card').forEach(c => c.classList.remove('active'));
     event.currentTarget.classList.add('active');
     if(origenCoords && destinoCoords) calcularRuta();
 }
-
-// Inicialización global
 window.addEventListener('load', init);
