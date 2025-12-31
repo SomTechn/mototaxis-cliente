@@ -1,406 +1,265 @@
 // ============================================
-// APP CLIENTE - FINAL FIX (NULL & AUDIO)
+// APP CLIENTE - FINAL v3
 // ============================================
 
-console.log('=== INICIANDO APP CLIENTE ===');
+console.log('=== CLIENTE INICIADO ===');
 
-let mapa, usuario, clienteId;
-let carreraActiva = null;
-let origenMarker = null, destinoMarker = null, rutaLayer = null, conductorMarker = null, ubicacionActualMarker = null;
-let modoSeleccion = null;
-let origenCoords = null, destinoCoords = null;
+let mapa, usuario, clienteId, carreraActiva = null;
+let origenMarker, destinoMarker, rutaLayer, conductorMarker, ubicacionUserMarker;
+let modoSeleccion = null, origenCoords = null, destinoCoords = null;
 let trackingInterval = null;
-
-// ============================================
-// 1. INICIALIZACIÓN
-// ============================================
 
 async function init() {
     try {
         await esperarSupabase();
-        const sesionValida = await verificarSesion();
-        if (!sesionValida) return;
-        
+        if (!await verificarSesion()) return;
         await cargarDatosCliente();
         
         inicializarMapa();
-        inicializarEventos();
-        inyectarEstilosAnimacion();
-
+        
         if (typeof PRICING_CONFIG !== 'undefined') await PRICING_CONFIG.cargarDesdeDB();
-
+        
+        // Carga inicial y suscripción
         await cargarCarreraActiva();
-        await cargarHistorial();
-        suscribirseACambios();
+        suscribirseCambios();
         
-        ocultarLoader();
-        console.log('=== ✅ APP CLIENTE LISTA ===');
+        document.getElementById('loader').classList.add('hidden');
         
-    } catch (error) {
-        console.error('Error init:', error);
-        mostrarError('Error al iniciar: ' + error.message);
-        ocultarLoader();
+    } catch (e) {
+        console.error(e);
+        alert('Error: ' + e.message);
+        document.getElementById('loader').classList.add('hidden');
     }
 }
 
 async function esperarSupabase() {
-    return new Promise((resolve, reject) => {
-        if (window.supabaseClient) { resolve(); return; }
-        let i = 0;
-        const interval = setInterval(() => {
-            i++;
-            if (window.supabaseClient) { clearInterval(interval); resolve(); } 
-            else if (i > 50) { clearInterval(interval); reject(new Error('Timeout DB')); }
-        }, 100);
+    return new Promise(resolve => {
+        const i = setInterval(() => { if (window.supabaseClient) { clearInterval(i); resolve(); } }, 100);
     });
 }
 
 async function verificarSesion() {
-    const { data: { session }, error } = await window.supabaseClient.auth.getSession();
-    if (!session || error) { window.location.href = 'login.html'; return false; }
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return false; }
     usuario = session.user;
     return true;
 }
 
 async function cargarDatosCliente() {
-    const { data: cliente, error } = await window.supabaseClient
-        .from('clientes').select('id').eq('perfil_id', usuario.id).maybeSingle();
-        
-    if (error) throw error;
-    if (!cliente) {
-        const { data: newCliente, error: createError } = await window.supabaseClient
-            .from('clientes').insert({ perfil_id: usuario.id }).select().single();
-        if (createError) throw new Error('Error creando cliente');
-        clienteId = newCliente.id;
-    } else {
-        clienteId = cliente.id;
+    let { data, error } = await window.supabaseClient.from('clientes').select('id').eq('perfil_id', usuario.id).maybeSingle();
+    if (!data) {
+        const res = await window.supabaseClient.from('clientes').insert({ perfil_id: usuario.id }).select().single();
+        data = res.data;
     }
+    clienteId = data.id;
 }
 
-// ============================================
-// 2. MAPA
-// ============================================
-
+// --- MAPA ---
 function inicializarMapa() {
-    const centro = (typeof MAP_CONFIG !== 'undefined') ? MAP_CONFIG.defaultCenter : [15.5048, -88.0250];
-    mapa = L.map('map', { zoomControl: false }).setView(centro, 13);
-    L.control.zoom({ position: 'topright' }).addTo(mapa);
+    mapa = L.map('map', { zoomControl: false }).setView([15.5048, -88.0250], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapa);
-    mapa.on('click', (e) => { if (modoSeleccion) seleccionarUbicacion(e.latlng); });
-    obtenerUbicacionActual();
-}
-
-function obtenerUbicacionActual() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            const lat = pos.coords.latitude, lng = pos.coords.longitude;
-            mapa.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
-            const html = `<div style="background-color:#4285F4; width:15px; height:15px; border-radius:50%; border:2px solid white; box-shadow:0 0 0 10px rgba(66,133,244,0.2);"></div>`;
-            const icon = L.divIcon({ className: 'gps-user-location', html: html, iconSize: [20, 20], iconAnchor: [10, 10] });
-            if (ubicacionActualMarker) mapa.removeLayer(ubicacionActualMarker);
-            ubicacionActualMarker = L.marker([lat, lng], { icon: icon }).addTo(mapa);
-            if (!origenCoords) setTimeout(() => seleccionarUbicacion({ lat, lng }, true), 2000);
-        },
-        () => console.warn('GPS no disponible'), { enableHighAccuracy: true }
-    );
-}
-
-function seleccionarOrigen() { modoSeleccion = 'origen'; cerrarModal(); mostrarNotificacion('📍 Marca el ORIGEN'); }
-function seleccionarDestino() { modoSeleccion = 'destino'; cerrarModal(); mostrarNotificacion('🏁 Marca el DESTINO'); }
-
-async function seleccionarUbicacion(latlng, esAutomatico = false) {
-    if (esAutomatico) modoSeleccion = 'origen';
-    if (!modoSeleccion && !esAutomatico) return;
-
-    const dir = await obtenerDireccion(latlng.lat, latlng.lng);
+    mapa.on('click', e => { if (modoSeleccion) setUbicacion(e.latlng); });
     
-    if (modoSeleccion === 'origen') {
-        origenCoords = { lat: latlng.lat, lng: latlng.lng, dir: dir };
-        if (origenMarker) mapa.removeLayer(origenMarker);
-        origenMarker = L.marker([latlng.lat, latlng.lng], { icon: L.divIcon({ html: '📍', className: 'emoji-marker' }) }).addTo(mapa);
-        document.getElementById('origenDir').value = dir;
-    } else {
-        destinoCoords = { lat: latlng.lat, lng: latlng.lng, dir: dir };
-        if (destinoMarker) mapa.removeLayer(destinoMarker);
-        destinoMarker = L.marker([latlng.lat, latlng.lng], { icon: L.divIcon({ html: '🏁', className: 'emoji-marker' }) }).addTo(mapa);
-        document.getElementById('destinoDir').value = dir;
+    // GPS Usuario
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const lat = pos.coords.latitude, lng = pos.coords.longitude;
+            mapa.setView([lat, lng], 15);
+            ubicacionUserMarker = L.marker([lat, lng], { icon: L.divIcon({ className:'user-dot', html:'<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(0,0,0,0.2)"></div>' }) }).addTo(mapa);
+            
+            // Auto-set Origen
+            if (!origenCoords) setUbicacion({ lat, lng }, true);
+        });
     }
-    modoSeleccion = null;
-    if (!esAutomatico) abrirModalCarrera();
-    if (origenCoords && destinoCoords) await calcularRuta();
+}
+
+function setUbicacion(latlng, auto = false) {
+    if (auto) modoSeleccion = 'origen';
+    if (!modoSeleccion) return;
+
+    if (modoSeleccion === 'origen') {
+        origenCoords = { lat: latlng.lat, lng: latlng.lng };
+        if (origenMarker) mapa.removeLayer(origenMarker);
+        origenMarker = L.marker([latlng.lat, latlng.lng]).addTo(mapa);
+        obtenerDireccion(latlng.lat, latlng.lng).then(d => { 
+            origenCoords.dir = d; document.getElementById('origenDir').value = d; 
+        });
+    } else {
+        destinoCoords = { lat: latlng.lat, lng: latlng.lng };
+        if (destinoMarker) mapa.removeLayer(destinoMarker);
+        destinoMarker = L.marker([latlng.lat, latlng.lng]).addTo(mapa);
+        obtenerDireccion(latlng.lat, latlng.lng).then(d => { 
+            destinoCoords.dir = d; document.getElementById('destinoDir').value = d; 
+            calcularRuta();
+        });
+    }
+    if (!auto) { modoSeleccion = null; abrirModalCarrera(); }
 }
 
 async function obtenerDireccion(lat, lng) {
     try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
         const data = await res.json();
-        return data.display_name?.split(',')[0] || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        return data.display_name?.split(',')[0];
     } catch { return `${lat.toFixed(4)}, ${lng.toFixed(4)}`; }
 }
 
 async function calcularRuta() {
+    if (!origenCoords || !destinoCoords) return;
     const btn = document.getElementById('btnSolicitar');
-    if(btn) { btn.disabled = true; btn.textContent = "Calculando..."; }
+    btn.textContent = 'Calculando...'; btn.disabled = true;
 
     try {
         const url = `https://router.project-osrm.org/route/v1/driving/${origenCoords.lng},${origenCoords.lat};${destinoCoords.lng},${destinoCoords.lat}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         const data = await res.json();
-        
-        if (data.routes && data.routes[0]) {
+        if (data.routes?.[0]) {
             const r = data.routes[0];
             const dist = r.distance / 1000;
-            const time = Math.ceil((r.duration / 60) * 1.3);
+            const time = Math.ceil(r.duration / 60);
             const tipo = document.getElementById('tipoCarrera').value;
-            let precio = (typeof PRICING_CONFIG !== 'undefined') ? PRICING_CONFIG.calcularPrecio(dist, tipo === 'colectivo') : Math.max(dist * 15, 30);
-            
-            document.getElementById('resDistancia').textContent = dist.toFixed(2) + ' km';
-            document.getElementById('resTiempo').textContent = time + ' min';
+            const precio = PRICING_CONFIG ? PRICING_CONFIG.calcularPrecio(dist, tipo==='colectivo') : Math.max(30, dist*15);
+
+            document.getElementById('resDist').textContent = dist.toFixed(1) + ' km';
+            document.getElementById('resTime').textContent = time + ' min';
             document.getElementById('resPrecio').textContent = 'L ' + precio.toFixed(2);
-            document.getElementById('resumenCarrera').style.display = 'block';
+            document.getElementById('resumenCarrera').classList.remove('hidden');
             
             if (rutaLayer) mapa.removeLayer(rutaLayer);
             rutaLayer = L.geoJSON(r.geometry, { style: { color: '#2563eb', weight: 4 } }).addTo(mapa);
             mapa.fitBounds(rutaLayer.getBounds(), { padding: [50, 50] });
 
-            if(btn) { btn.disabled = false; btn.textContent = "Pedir Mototaxi"; }
+            btn.textContent = 'Confirmar Viaje'; btn.disabled = false;
         }
-    } catch (e) { if(btn) btn.textContent = "Error ruta"; }
+    } catch(e) { btn.textContent = 'Error ruta'; }
 }
-
-// ============================================
-// 3. CARRERAS
-// ============================================
 
 async function solicitarCarrera() {
-    if (!origenCoords || !destinoCoords) return;
-    
     const tipo = document.getElementById('tipoCarrera').value;
-    const dist = parseFloat(document.getElementById('resDistancia').textContent);
-    const time = parseInt(document.getElementById('resTiempo').textContent);
+    const dist = parseFloat(document.getElementById('resDist').textContent);
+    const time = parseInt(document.getElementById('resTime').textContent);
     const precio = parseFloat(document.getElementById('resPrecio').textContent.replace('L ', ''));
-    
-    try {
-        mostrarLoader();
-        const { error } = await window.supabaseClient.from('carreras').insert({
-            tipo, cliente_id: clienteId,
-            origen_direccion: origenCoords.dir, origen_lat: origenCoords.lat, origen_lng: origenCoords.lng,
-            destino_direccion: destinoCoords.dir, destino_lat: destinoCoords.lat, destino_lng: destinoCoords.lng,
-            distancia_km: dist, tiempo_estimado_min: time, precio, estado: 'buscando'
-        });
-        
-        if (error) throw error;
-        cerrarModal();
-        mostrarNotificacion('✅ Solicitud enviada');
-        await cargarCarreraActiva();
-        
-    } catch (e) { mostrarError(e.message); } 
-    finally { ocultarLoader(); }
+
+    const { error } = await window.supabaseClient.from('carreras').insert({
+        cliente_id: clienteId, tipo, precio, distancia_km: dist, tiempo_estimado_min: time,
+        origen_lat: origenCoords.lat, origen_lng: origenCoords.lng, origen_direccion: origenCoords.dir,
+        destino_lat: destinoCoords.lat, destino_lng: destinoCoords.lng, destino_direccion: destinoCoords.dir,
+        estado: 'buscando'
+    });
+
+    if (error) alert(error.message);
+    else { cerrarModal(); cargarCarreraActiva(); }
 }
 
+// --- GESTIÓN ESTADO ---
 async function cargarCarreraActiva() {
-    try {
-        const { data, error } = await window.supabaseClient
-            .from('carreras')
-            .select('*')
-            .eq('cliente_id', clienteId)
-            .in('estado', ['solicitada', 'buscando', 'asignada', 'aceptada', 'en_camino', 'en_curso'])
-            .order('fecha_solicitud', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-            
-        const container = document.getElementById('carreraActiva');
-        if (document.getElementById('searchingAnimation')) document.getElementById('searchingAnimation').classList.add('hidden');
-        
-        if (error) throw error;
-        
-        if (!data) {
-            carreraActiva = null;
-            container.innerHTML = '<p style="text-align:center;color:#6b7280;margin-top:2rem">No tienes viajes activos</p>';
-            detenerTracking();
-            return;
-        }
+    const { data } = await window.supabaseClient.from('carreras').select('*, conductores(placa, modelo_moto, color, perfiles(nombre, telefono))')
+        .eq('cliente_id', clienteId)
+        .in('estado', ['buscando','asignada','aceptada','en_camino','en_curso'])
+        .maybeSingle();
 
-        carreraActiva = data;
-        
-        if (!rutaLayer && data.origen_lat && data.destino_lat) {
-             origenCoords = { lat: data.origen_lat, lng: data.origen_lng };
-             destinoCoords = { lat: data.destino_lat, lng: data.destino_lng };
-        }
-
-        if (data.estado === 'buscando' || data.estado === 'solicitada') {
-            mostrarTarjetaBusqueda(data);
-        } else {
-            await mostrarCarreraActiva(data);
-            iniciarTracking(data);
-        }
-        if (window.expandSidebar) window.expandSidebar();
-
-    } catch (e) { console.error(e); }
+    carreraActiva = data;
+    renderUI();
+    if (data && data.conductor_id) iniciarTracking(data.conductor_id);
 }
 
-function mostrarTarjetaBusqueda(carrera) {
-    const html = `
-        <div class="card" style="border-top: 4px solid #f59e0b;">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <div class="mini-pulse-ring"></div>
-                <h3 style="margin: 0; font-size: 1.1rem; color: #f59e0b;">Buscando...</h3>
-            </div>
-            <div style="margin: 10px 0; padding: 10px; background: #f9fafb; border-radius: 8px; font-size: 0.9em;">
-                <div style="margin-bottom: 5px;"><strong>📍 Destino:</strong> ${carrera.destino_direccion.substring(0, 30)}...</div>
-                <div><strong>💰 Precio:</strong> L ${carrera.precio}</div>
-            </div>
-            <button class="btn btn-danger" style="width:100%; font-size: 0.9em; padding: 10px;" onclick="cancelarCarrera('${carrera.id}')">✕ Cancelar Solicitud</button>
-        </div>
-    `;
-    document.getElementById('carreraActiva').innerHTML = html;
-}
+function renderUI() {
+    const panelSin = document.getElementById('panelSinViaje');
+    const panelCon = document.getElementById('panelConViaje');
+    const content = document.getElementById('statusContent');
 
-async function mostrarCarreraActiva(carrera) {
-    let conductorInfo = null;
-    
-    // CORRECCIÓN CRÍTICA: Validar si hay conductor antes de buscarlo
-    if (carrera.conductor_id) {
-        const { data } = await window.supabaseClient
-            .from('conductores')
-            .select('placa, modelo_moto, color, perfil:perfiles(nombre, telefono)')
-            .eq('id', carrera.conductor_id).maybeSingle();
-        conductorInfo = data;
+    if (!carreraActiva) {
+        panelSin.classList.remove('hidden');
+        panelCon.classList.add('hidden');
+        if(rutaLayer) mapa.removeLayer(rutaLayer);
+        return;
     }
-    
-    const estados = { 'asignada': 'Asignado', 'aceptada': 'Aceptado', 'en_camino': 'En Camino', 'en_curso': 'En Curso' };
-    const color = carrera.estado === 'en_curso' ? '#10b981' : '#3b82f6';
-    
-    // SAFE ACCESS: Usar ?. para evitar crash si conductorInfo es null
-    const nombreCond = conductorInfo?.perfil?.nombre || 'Conductor';
-    const motoCond = conductorInfo?.modelo_moto || '';
-    const placaCond = conductorInfo?.placa || '';
-    const telCond = conductorInfo?.perfil?.telefono || '';
 
-    let html = `
-        <div class="card" style="border-top: 4px solid ${color};">
-            <h3>${estados[carrera.estado] || carrera.estado}</h3>
-            <div style="margin: 10px 0; padding: 10px; background: #f0f9ff; border-radius: 8px;">
-                <p><strong>Destino:</strong> ${carrera.destino_direccion}</p>
-                <p><strong>Precio:</strong> L ${carrera.precio}</p>
-            </div>
-    `;
+    // SI HAY VIAJE ACTIVO
+    panelSin.classList.add('hidden');
+    panelCon.classList.remove('hidden');
+
+    let html = '', estadoTexto = '', color = '';
     
-    if (conductorInfo) {
-        html += `
-            <div style="display:flex; align-items:center; gap:15px; margin-top:10px; padding-top:10px; border-top:1px solid #eee">
-                <div style="font-size:35px;">🏍️</div>
-                <div>
-                    <p style="font-weight:bold; margin:0">${nombreCond}</p>
-                    <p style="margin:0; font-size:0.8em; color:#666">${motoCond} • ${placaCond}</p>
+    switch(carreraActiva.estado) {
+        case 'buscando': 
+            estadoTexto = '🔎 Buscando conductor...'; color = '#f59e0b'; 
+            html = `<div class="status-card" style="border-left:4px solid ${color}"><h3 style="margin:0;color:${color}">${estadoTexto}</h3><p class="text-sm">Contactando mototaxis cercanas</p><button class="btn-danger" onclick="cancelarCarrera('${carreraActiva.id}')">Cancelar Solicitud</button></div>`;
+            break;
+        case 'aceptada':
+        case 'en_camino':
+            estadoTexto = '🚀 Conductor en camino'; color = '#2563eb';
+            html = renderCardConductor(estadoTexto, color, 'Llega en 5 min');
+            break;
+        case 'en_curso':
+            estadoTexto = '🏁 En viaje al destino'; color = '#10b981';
+            html = renderCardConductor(estadoTexto, color, 'Estás en viaje');
+            break;
+    }
+    content.innerHTML = html;
+}
+
+function renderCardConductor(titulo, color, sub) {
+    const c = carreraActiva.conductores;
+    const nombre = c?.perfiles?.nombre || 'Conductor';
+    const moto = `${c?.modelo_moto || ''} • ${c?.placa || ''}`;
+    const tel = c?.perfiles?.telefono || '';
+
+    return `
+        <div class="status-card" style="border-left:4px solid ${color}">
+            <div class="flex-between">
+                <div><h3 style="margin:0;color:${color}">${titulo}</h3><p class="text-sm" style="margin:4px 0">${sub}</p></div>
+                <div style="font-size:1.5rem;font-weight:bold">L ${carreraActiva.precio}</div>
+            </div>
+            <div class="driver-info">
+                <div class="driver-avatar">👤</div>
+                <div style="flex:1">
+                    <div class="font-bold">${nombre}</div>
+                    <div class="text-sm">${moto}</div>
                 </div>
+                <a href="tel:${tel}" style="background:#e0f2fe;padding:10px;border-radius:50%;text-decoration:none">📞</a>
             </div>
-            <div style="display:flex; gap:10px; margin-top:15px">
-                <a href="tel:${telCond}" class="btn btn-primary" style="flex:1; justify-content:center;">📞</a>
-                <a href="https://wa.me/504${telCond.replace(/-/g, '')}" class="btn btn-success" style="flex:1; justify-content:center;">💬</a>
-            </div>
-        `;
-    }
-    
-    if (carrera.estado !== 'en_curso') {
-        html += `<button class="btn btn-secondary" style="width:100%; margin-top:10px; color:#ef4444;" onclick="cancelarCarrera('${carrera.id}')">Cancelar Viaje</button>`;
-    }
-    html += `</div>`;
-    document.getElementById('carreraActiva').innerHTML = html;
-}
-
-// ... Resto de funciones (cargarHistorial, cancelarCarrera, tracking, etc) igual que antes ...
-// Asegurarse de incluir cargarHistorial, cancelarCarrera, limpiarMapaCompleto, iniciarTracking, detenerTracking, actualizarConductorEnMapa
-
-async function cargarHistorial() {
-    try {
-        const { data } = await window.supabaseClient.from('carreras').select('*').eq('cliente_id', clienteId)
-            .in('estado', ['completada', 'cancelada_cliente']).order('fecha_solicitud', { ascending: false }).limit(5);
-        const div = document.getElementById('historialCarreras');
-        if (!data || !data.length) { div.innerHTML = '<p style="text-align:center;color:#999">Sin historial.</p>'; return; }
-        div.innerHTML = data.map(c => `
-            <div class="card mb-1" style="border-left: 4px solid ${c.estado==='completada'?'#10b981':'#ef4444'};padding:0.8rem">
-                <div style="display:flex;justify-content:space-between;font-size:0.85em">
-                    <strong>${new Date(c.fecha_solicitud).toLocaleDateString()}</strong><span>${c.estado}</span>
-                </div>
-                <p style="font-size:0.8em;margin:5px 0">${c.destino_direccion.substring(0,25)}...</p>
-                <strong style="color:#2563eb;font-size:0.9em">L ${c.precio}</strong>
-            </div>`).join('');
-    } catch(e){}
+        </div>`;
 }
 
 async function cancelarCarrera(id) {
-    if(!confirm('¿Cancelar?')) return;
-    mostrarLoader();
-    try {
+    if(confirm('¿Cancelar?')) {
         await window.supabaseClient.from('carreras').update({ estado: 'cancelada_cliente' }).eq('id', id);
-        limpiarMapaCompleto();
-        await cargarCarreraActiva();
-    } catch (e) { mostrarError(e.message); } finally { ocultarLoader(); }
+        cargarCarreraActiva();
+    }
 }
 
-function limpiarMapaCompleto() {
-    if (rutaLayer) { mapa.removeLayer(rutaLayer); rutaLayer = null; }
-    if (origenMarker) { mapa.removeLayer(origenMarker); origenMarker = null; }
-    if (destinoMarker) { mapa.removeLayer(destinoMarker); destinoMarker = null; }
-    origenCoords = null; destinoCoords = null;
-    document.getElementById('origenDir').value = ''; document.getElementById('destinoDir').value = '';
-    document.getElementById('resumenCarrera').style.display = 'none';
-}
-
-function iniciarTracking(carrera) {
-    if (trackingInterval) clearInterval(trackingInterval);
-    if (!carrera.conductor_id) return;
-    trackingInterval = setInterval(async () => {
-        const { data } = await window.supabaseClient.from('conductores').select('latitud, longitud, rumbo').eq('id', carrera.conductor_id).maybeSingle();
-        if (data && data.latitud) actualizarConductorEnMapa(data.latitud, data.longitud, data.rumbo);
-    }, 4000);
-}
-
-function detenerTracking() {
-    if (trackingInterval) clearInterval(trackingInterval);
-    if (conductorMarker) { mapa.removeLayer(conductorMarker); conductorMarker = null; }
-}
-
-function actualizarConductorEnMapa(lat, lng, rumbo) {
-    const icon = L.divIcon({ html: `<div style="transform: rotate(${rumbo||0}deg); font-size: 30px;">🏍️</div>`, className: 'emoji-marker', iconSize: [40, 40] });
-    if (conductorMarker) { conductorMarker.setLatLng([lat, lng]); conductorMarker.setIcon(icon); }
-    else { conductorMarker = L.marker([lat, lng], { icon: icon }).addTo(mapa); }
-}
-
-function suscribirseACambios() {
-    window.supabaseClient.channel('cliente-updates').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'carreras', filter: `cliente_id=eq.${clienteId}` }, 
-        (payload) => {
-            const nueva = payload.new;
-            if (nueva.estado === 'aceptada') { mostrarNotificacion('¡Conductor encontrado! 🎉'); reproducirSonido(); }
-            else if (nueva.estado === 'completada') { alert('Viaje finalizado. L ' + nueva.precio); detenerTracking(); limpiarMapaCompleto(); }
-            cargarCarreraActiva();
+function suscribirseCambios() {
+    window.supabaseClient.channel('cliente_carreras')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'carreras', filter: `cliente_id=eq.${clienteId}` }, 
+        payload => {
+            if (payload.new.estado === 'completada') { alert('Viaje finalizado'); window.location.reload(); }
+            else { cargarCarreraActiva(); } // Recarga estado UI
         }).subscribe();
 }
 
-function inyectarEstilosAnimacion() {
-    const style = document.createElement('style');
-    style.innerHTML = `.mini-pulse-ring { width: 15px; height: 15px; border-radius: 50%; background: #fcd34d; display: inline-block; }`;
-    document.head.appendChild(style);
+function iniciarTracking(driverId) {
+    if(trackingInterval) clearInterval(trackingInterval);
+    trackingInterval = setInterval(async () => {
+        const { data } = await window.supabaseClient.from('conductores').select('latitud,longitud').eq('id', driverId).single();
+        if(data) {
+            if(conductorMarker) conductorMarker.setLatLng([data.latitud, data.longitud]);
+            else conductorMarker = L.marker([data.latitud, data.longitud], { icon: L.divIcon({className:'moto-icon', html:'🏍️'}) }).addTo(mapa);
+        }
+    }, 5000);
 }
 
-function mostrarLoader() { document.getElementById('loader').classList.remove('hidden'); }
-function ocultarLoader() { document.getElementById('loader').classList.add('hidden'); }
-function mostrarError(m) { console.error(m); alert(m); }
-function mostrarNotificacion(m) {
-    const n = document.createElement('div'); n.className = 'notification'; n.textContent = m;
-    n.style.cssText = `position: fixed; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10000; animation: slideIn 0.3s;`;
-    document.body.appendChild(n); setTimeout(() => n.remove(), 4000);
-}
-function reproducirSonido() { try { document.getElementById('notificationSound').play().catch(e => {}); } catch(e){} }
+// Helpers UI
 function abrirModalCarrera() { document.getElementById('modalCarrera').classList.add('active'); }
-function cerrarModal() { document.getElementById('modalCarrera').classList.remove('active'); limpiarSeleccion(); }
-function limpiarSeleccion() { if (modoSeleccion) return; document.getElementById('resumenCarrera').style.display = 'none'; }
-function seleccionarTipo(t) {
-    document.getElementById('tipoCarrera').value = t;
-    document.querySelectorAll('.tipo-card').forEach(c => c.classList.remove('active'));
+function cerrarModal() { document.getElementById('modalCarrera').classList.remove('active'); }
+function seleccionarTipo(t) { 
+    document.getElementById('tipoCarrera').value = t; 
+    document.querySelectorAll('.type-option').forEach(e => e.classList.remove('active'));
     event.currentTarget.classList.add('active');
-    if(origenCoords && destinoCoords) calcularRuta();
+    calcularRuta();
 }
+function seleccionarOrigen() { modoSeleccion='origen'; cerrarModal(); }
+function seleccionarDestino() { modoSeleccion='destino'; cerrarModal(); }
+async function cerrarSesion() { await window.supabaseClient.auth.signOut(); window.location.href='login.html'; }
+
 window.addEventListener('load', init);
