@@ -3,138 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mototaxis Cliente</title>
+    <title>Cliente</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="shared/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../shared/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
+        /* ESTILOS CLIENTE */
         :root { --primary: #2563eb; --surface: #ffffff; --bg: #f3f4f6; --text: #1f2937; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
-        
+        #map { flex: 1; z-index: 1; }
+
         /* HEADER */
-        .header { background: var(--surface); padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 20; display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { font-size: 1.25rem; margin: 0; color: var(--primary); font-weight: 700; }
-        .btn-logout { background: #fee2e2; color: #dc2626; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
-
-        /* MAPA & LAYOUT */
-        .main-container { flex: 1; position: relative; }
-        #map { width: 100%; height: 100%; z-index: 1; }
-
-        /* PANEL INFERIOR (Floating Card) */
-        .bottom-panel {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            background: var(--surface); border-radius: 24px 24px 0 0;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.1); z-index: 10;
-            padding: 1.5rem; max-height: 80vh; overflow-y: auto;
-            transition: transform 0.3s ease;
+        .header { position: absolute; top: 1rem; left: 1rem; right: 1rem; z-index: 20; display: flex; justify-content: space-between; pointer-events: none; }
+        .user-badge { pointer-events: auto; background: white; padding: 0.5rem 1rem; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        
+        /* PANEL INFERIOR & NAV */
+        .bottom-container {
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 30;
+            background: white; border-radius: 24px 24px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; max-height: 85vh;
         }
-
-        /* ESTADOS */
-        .status-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 1.25rem; margin-bottom: 1rem; }
-        .driver-info { display: flex; align-items: center; gap: 12px; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dbeafe; }
-        .driver-avatar { width: 48px; height: 48px; background: #bfdbfe; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
         
-        /* BOTONES */
-        .btn-primary { background: var(--primary); color: white; width: 100%; padding: 1rem; border: none; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(37,99,235,0.2); }
-        .btn-secondary { background: white; color: var(--text); border: 1px solid #e5e7eb; }
-        .btn-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; width: 100%; padding: 0.75rem; border-radius: 12px; font-weight: 600; margin-top: 0.5rem; cursor: pointer; }
-
-        /* MODAL */
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal.active { display: flex; }
-        .modal-card { background: white; width: 90%; max-width: 400px; border-radius: 24px; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .panel-content { padding: 1.5rem; overflow-y: auto; flex: 1; }
         
-        .address-input { background: #f9fafb; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 12px; width: 100%; margin-bottom: 0.5rem; font-size: 0.9rem; }
-        .trip-type-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 1rem 0; }
-        .type-option { padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
-        .type-option.active { border-color: var(--primary); background: #eff6ff; }
+        .nav-bar {
+            display: flex; border-top: 1px solid #f3f4f6; padding: 0.8rem 0;
+            background: white; justify-content: space-around;
+        }
+        .nav-item {
+            text-align: center; color: #9ca3af; font-size: 0.75rem; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+        }
+        .nav-item.active { color: var(--primary); font-weight: 600; }
+        .nav-icon { font-size: 1.5rem; }
 
-        /* UTILS */
+        /* COMPONENTES */
+        .btn-primary { background: var(--primary); color: white; width: 100%; padding: 1rem; border: none; border-radius: 16px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
+        .btn-logout { background: #fee2e2; color: #dc2626; border: none; width: 36px; height: 36px; border-radius: 50%; pointer-events: auto; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+        /* MODAL CALIFICACIÓN */
+        .rating-modal {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100;
+            display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+        }
+        .rating-card {
+            background: white; width: 90%; max-width: 350px; border-radius: 24px; padding: 2rem;
+            text-align: center; animation: popIn 0.3s;
+        }
+        .stars { display: flex; justify-content: center; gap: 10px; margin: 1.5rem 0; }
+        .star { font-size: 2.5rem; color: #e5e7eb; cursor: pointer; transition: color 0.2s; }
+        .star.active { color: #fbbf24; }
+        
+        /* UTILIDADES */
         .hidden { display: none !important; }
-        .text-sm { font-size: 0.875rem; color: #6b7280; }
-        .font-bold { font-weight: 700; }
-        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .address-input { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem; border-radius: 12px; width: 100%; margin-bottom: 0.8rem; font-size: 0.95rem; }
+        .trip-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 1rem; margin-bottom: 1rem; }
         
-        .loader-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
-    <div id="loader" class="loader-overlay"><div class="spinner"></div><p style="margin-top:1rem;color:#6b7280;font-weight:500">Cargando...</p></div>
+    
+    <div class="header">
+        <div class="user-badge">👤 <span id="userName">Cliente</span></div>
+        <button class="btn-logout" onclick="cerrarSesion()">✕</button>
+    </div>
 
-    <header class="header">
-        <h1>🚖 Mototaxis</h1>
-        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
-    </header>
+    <div id="map"></div>
 
-    <div class="main-container">
-        <div id="map"></div>
-        
-        <div class="bottom-panel" id="mainPanel">
-            <div id="panelSinViaje">
-                <h2 style="margin:0 0 0.5rem 0; font-size:1.25rem">¿A dónde vamos?</h2>
-                <p class="text-sm" style="margin-bottom:1.5rem">Solicita una mototaxi segura y rápida.</p>
-                <button class="btn-primary" onclick="abrirModalCarrera()">📍 Solicitar Nuevo Viaje</button>
+    <div class="bottom-container">
+        <div id="view-home" class="panel-content">
+            <h2 style="margin:0 0 1rem 0">¿A dónde vamos?</h2>
+            
+            <div id="tripForm">
+                <input type="text" id="origenDir" class="address-input" readonly placeholder="📍 Origen (Tu ubicación)" onclick="seleccionarOrigen()">
+                <input type="text" id="destinoDir" class="address-input" readonly placeholder="🏁 Destino" onclick="seleccionarDestino()">
+                
+                <div id="resumenCarrera" class="hidden" style="background:#f8fafc; padding:1rem; border-radius:12px; margin-top:0.5rem; border:1px solid #e2e8f0;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem">
+                        <span>Distancia:</span> <strong id="resDist">0 km</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:1.2rem; color:var(--primary)">
+                        <span>Total:</span> <strong id="resPrice">L 0.00</strong>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:1rem">
+                    <button class="type-btn active" id="btnDirecto" style="padding:0.8rem; border:2px solid #2563eb; background:#eff6ff; border-radius:12px; font-weight:bold" onclick="setTipo('directo')">🏍️ Directo</button>
+                    <button class="type-btn" id="btnColectivo" style="padding:0.8rem; border:1px solid #e5e7eb; background:white; border-radius:12px;" onclick="setTipo('colectivo')">🚐 Colectivo</button>
+                </div>
+                <input type="hidden" id="tipoCarrera" value="directo">
+
+                <button id="btnSolicitar" class="btn-primary" disabled onclick="solicitarCarrera()">Pedir Mototaxi</button>
             </div>
 
-            <div id="panelConViaje" class="hidden">
+            <div id="tripStatus" class="hidden">
                 <div id="statusContent"></div>
             </div>
         </div>
-    </div>
 
-    <div id="modalCarrera" class="modal">
-        <div class="modal-card">
-            <div class="flex-between" style="margin-bottom:1.5rem">
-                <h2 style="margin:0">Nuevo Viaje</h2>
-                <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button>
-            </div>
-            
-            <div class="trip-type-selector">
-                <div class="type-option active" onclick="seleccionarTipo('directo')">
-                    <div style="font-size:1.5rem">🏍️</div>
-                    <div style="font-weight:600">Directo</div>
-                </div>
-                <div class="type-option" onclick="seleccionarTipo('colectivo')">
-                    <div style="font-size:1.5rem">🚐</div>
-                    <div style="font-weight:600">Colectivo</div>
-                    <div style="font-size:0.75rem;color:#10b981">-30% OFF</div>
-                </div>
-            </div>
-            <input type="hidden" id="tipoCarrera" value="directo">
+        <div id="view-history" class="panel-content hidden">
+            <h2 style="margin:0 0 1rem 0">Mis Viajes</h2>
+            <div id="historialLista">Cargando...</div>
+        </div>
 
-            <div style="margin-bottom:1rem">
-                <label class="text-sm font-bold">Origen</label>
-                <div style="display:flex;gap:8px">
-                    <input type="text" id="origenDir" class="address-input" readonly placeholder="Toca en el mapa..." value="Mi Ubicación Actual">
-                    <button onclick="seleccionarOrigen()" style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;width:40px;cursor:pointer">📍</button>
-                </div>
+        <div class="nav-bar">
+            <div class="nav-item active" onclick="switchView('home', this)">
+                <span class="nav-icon">🏠</span><span>Inicio</span>
             </div>
-
-            <div style="margin-bottom:1.5rem">
-                <label class="text-sm font-bold">Destino</label>
-                <div style="display:flex;gap:8px">
-                    <input type="text" id="destinoDir" class="address-input" readonly placeholder="Selecciona destino...">
-                    <button onclick="seleccionarDestino()" style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;width:40px;cursor:pointer">🏁</button>
-                </div>
+            <div class="nav-item" onclick="switchView('history', this)">
+                <span class="nav-icon">🕒</span><span>Historial</span>
             </div>
-
-            <div id="resumenCarrera" class="hidden" style="background:#f9fafb;padding:1rem;border-radius:12px;margin-bottom:1.5rem">
-                <div class="flex-between" style="margin-bottom:0.5rem"><span class="text-sm">Distancia</span><strong id="resDist">0 km</strong></div>
-                <div class="flex-between" style="margin-bottom:0.5rem"><span class="text-sm">Tiempo est.</span><strong id="resTime">0 min</strong></div>
-                <div class="flex-between" style="font-size:1.2rem;color:var(--primary);margin-top:0.5rem"><span>Total</span><strong id="resPrice">L 0.00</strong></div>
-            </div>
-
-            <button id="btnSolicitar" class="btn-primary" disabled onclick="solicitarCarrera()">Confirmar Viaje</button>
         </div>
     </div>
 
-    <audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.m4a"></audio>
+    <div id="ratingModal" class="rating-modal">
+        <div class="rating-card">
+            <h2>¡Viaje Finalizado!</h2>
+            <p>Califica a tu conductor</p>
+            <div class="stars">
+                <span class="star" onclick="rate(1)">★</span>
+                <span class="star" onclick="rate(2)">★</span>
+                <span class="star" onclick="rate(3)">★</span>
+                <span class="star" onclick="rate(4)">★</span>
+                <span class="star" onclick="rate(5)">★</span>
+            </div>
+            <textarea id="ratingComment" placeholder="Comentario (opcional)" style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid #e5e7eb; margin-bottom:1rem"></textarea>
+            <button class="btn-primary" onclick="enviarCalificacion()">Enviar Calificación</button>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="../shared/config.js"></script>
     <script src="app.js"></script>
+    <script>
+        function switchView(view, el) {
+            document.querySelectorAll('.panel-content').forEach(d => d.classList.add('hidden'));
+            document.getElementById('view-'+view).classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            if(view === 'history') cargarHistorial();
+        }
+    </script>
 </body>
 </html>
