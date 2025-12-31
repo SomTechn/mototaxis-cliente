@@ -7,348 +7,105 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="shared/styles.css">
     <style>
+        /* Estilos específicos Cliente */
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            overflow: hidden;
-        }
+        body { font-family: -apple-system, sans-serif; overflow: hidden; }
         
-        /* Header */
-        .header {
-            background: #2563eb;
-            color: white;
-            padding: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .header h1 {
-            font-size: 1.5rem;
-            margin: 0;
-        }
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
+        .header { background: #2563eb; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; height: 64px; }
+        .container { display: flex; height: calc(100vh - 64px); }
+        .sidebar { width: 400px; background: white; padding: 1.5rem; border-right: 1px solid #e5e7eb; overflow-y: auto; display: flex; flex-direction: column; }
+        .map-container { flex: 1; }
+        #map { width: 100%; height: 100%; }
         
-        /* Container */
-        .container {
-            display: flex;
-            height: calc(100vh - 64px);
-        }
-        
-        /* Sidebar */
-        .sidebar {
-            width: 400px;
-            background: white;
-            overflow-y: auto;
-            padding: 1.5rem;
-            border-right: 1px solid #e5e7eb;
-        }
-        
-        /* Map */
-        .map-container {
-            flex: 1;
-            position: relative;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-        
-        /* Botones */
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.2s;
-            font-size: 0.875rem;
-        }
-        .btn-primary {
-            background: #2563eb;
-            color: white;
-        }
-        .btn-primary:hover {
-            background: #1d4ed8;
-        }
-        .btn-success {
-            background: #10b981;
-            color: white;
-        }
-        .btn-success:hover {
-            background: #059669;
-        }
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-        .btn-danger:hover {
-            background: #dc2626;
-        }
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-        .btn-block {
-            width: 100%;
-        }
-        
-        /* Action buttons */
-        .action-buttons {
+        /* Animación de búsqueda */
+        #searchingAnimation {
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-        }
-        
-        /* Card */
-        .card {
-            background: #f9fafb;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .card h3, .card h4 {
-            margin-top: 0;
-        }
-        .card p {
-            margin: 0.5rem 0;
-        }
-        .mb-1 {
-            margin-bottom: 0.5rem;
-        }
-        
-        /* Tabs */
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #e5e7eb;
-            margin-bottom: 1rem;
-        }
-        .tab-btn {
-            flex: 1;
-            padding: 0.75rem;
-            background: none;
-            border: none;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            font-weight: 500;
-            color: #6b7280;
-            transition: all 0.2s;
-        }
-        .tab-btn.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
-        }
-        .tab-pane {
-            display: none;
-        }
-        .tab-pane.active {
-            display: block;
-        }
-        
-        /* Badge */
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        .badge-success {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        .badge-warning {
-            background: #fef3c7;
-            color: #92400e;
-        }
-        .badge-info {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-        
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
             align-items: center;
             justify-content: center;
+            padding: 2rem;
+            text-align: center;
         }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background: white;
-            border-radius: 1rem;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.5rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .modal-header h2 {
-            margin: 0;
-        }
-        .modal-body {
-            padding: 1.5rem;
-        }
-        .modal-footer {
-            padding: 1.5rem;
-            border-top: 1px solid #e5e7eb;
-            display: flex;
-            gap: 0.5rem;
-            justify-content: flex-end;
-        }
-        .btn-close {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #6b7280;
-        }
-        
-        /* Tipo selector */
-        .tipo-selector {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
+        .pulse-ring {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #dbeafe;
+            position: relative;
             margin-bottom: 1.5rem;
-        }
-        .tipo-card {
-            padding: 1.5rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.2s;
-        }
-        .tipo-card:hover {
-            border-color: #2563eb;
-        }
-        .tipo-card.active {
-            border-color: #2563eb;
-            background: #eff6ff;
-        }
-        .tipo-card h3 {
-            margin: 0 0 0.5rem 0;
-            font-size: 1.25rem;
-        }
-        .tipo-card .descuento {
-            color: #10b981;
-            font-weight: bold;
-        }
-        
-        /* Resumen */
-        .resumen {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 1rem;
-        }
-        .resumen-item {
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-        }
-        
-        /* Emoji marker */
-        .emoji-marker {
+            align-items: center;
+            justify-content: center;
             font-size: 2rem;
-            text-align: center;
-            line-height: 30px;
         }
+        .pulse-ring::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 4px solid #3b82f6;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        /* Estilos Tab y Cards */
+        .tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 1rem; }
+        .tab-btn { flex: 1; padding: 0.75rem; background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; color: #6b7280; }
+        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
         
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 5rem;
-            right: 1rem;
-            background: white;
-            padding: 1rem 1.5rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            z-index: 10000;
-            animation: slideIn 0.3s;
-        }
-        @keyframes slideIn {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
+        .tipo-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+        .tipo-card { padding: 1rem; border: 2px solid #e5e7eb; border-radius: 0.5rem; cursor: pointer; text-align: center; }
+        .tipo-card.active { border-color: #2563eb; background: #eff6ff; }
         
-        /* Responsive */
         @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-            }
-            .sidebar {
-                width: 100%;
-                height: 50vh;
-                border-right: none;
-                border-bottom: 1px solid #e5e7eb;
-            }
-            .map-container {
-                height: 50vh;
-            }
+            .container { flex-direction: column; }
+            .sidebar { width: 100%; height: 45vh; order: 2; }
+            .map-container { height: 55vh; order: 1; }
         }
     </style>
 </head>
 <body>
-    <div id="loader" class="loader-fullscreen">
-        <div class="loader"></div>
-        <p>Cargando...</p>
-    </div>
+    <div id="loader" class="loader-fullscreen"><div class="loader"></div><p>Cargando...</p></div>
     
     <header class="header">
         <h1>🏍️ Mototaxis</h1>
-        <div class="header-actions">
-            <span id="welcomeMsg">Bienvenido</span>
-            <button class="btn btn-danger" onclick="cerrarSesion()">Salir</button>
+        <div style="display:flex; align-items:center; gap:10px">
+            <span id="welcomeMsg" style="font-size:0.9rem"></span>
+            <button class="btn btn-danger" onclick="window.supabaseClient.auth.signOut().then(()=>window.location.href='login.html')">Salir</button>
         </div>
     </header>
     
     <div class="container">
         <aside class="sidebar">
-            <div class="action-buttons">
-                <button class="btn btn-primary btn-block" onclick="abrirModalCarrera()">
-                    🚖 Nueva Carrera
-                </button>
-            </div>
+            <button class="btn btn-primary btn-block mb-2" onclick="abrirModalCarrera()" style="padding: 1rem; font-size: 1.1rem;">
+                📍 Solicitar Nuevo Viaje
+            </button>
             
             <div class="tabs">
-                <button class="tab-btn active" data-tab="activa">Carrera Activa</button>
+                <button class="tab-btn active" data-tab="activa">Estado Actual</button>
                 <button class="tab-btn" data-tab="historial">Historial</button>
             </div>
             
-            <div class="tab-content">
-                <div id="tab-activa" class="tab-pane active">
-                    <div id="carreraActiva">
-                        <p style="text-align: center; color: #6b7280;">No tienes carreras activas</p>
-                    </div>
+            <div id="tab-activa" class="tab-pane active">
+                <div id="searchingAnimation" class="hidden">
+                    <div class="pulse-ring">🔍</div>
+                    <h3>Buscando conductor...</h3>
+                    <p style="color:#666; margin-top:0.5rem">Estamos contactando a las mototaxis más cercanas.</p>
                 </div>
                 
-                <div id="tab-historial" class="tab-pane">
-                    <div id="historialCarreras">
-                        <p style="text-align: center; color: #6b7280;">Sin historial</p>
-                    </div>
+                <div id="carreraActiva">
+                    <p style="text-align:center; color:#6b7280; margin-top:2rem">No tienes viajes en curso</p>
                 </div>
+            </div>
+            
+            <div id="tab-historial" class="tab-pane">
+                <div id="historialCarreras"></div>
             </div>
         </aside>
         
@@ -357,78 +114,58 @@
         </main>
     </div>
     
-    <!-- Modal Nueva Carrera -->
     <div id="modalCarrera" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Nueva Carrera</h2>
-                <button class="btn-close" onclick="cerrarModal()">✕</button>
+                <h2>Nuevo Viaje</h2>
+                <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">✕</button>
             </div>
             <div class="modal-body">
-                <h3>Tipo de Carrera</h3>
+                <h3>Tipo de Servicio</h3>
                 <div class="tipo-selector">
                     <div class="tipo-card active" onclick="seleccionarTipo('directo')">
-                        <h3>🚖 Directa</h3>
-                        <p>Solo para ti</p>
+                        <h3>⚡ Directo</h3>
+                        <p>Viaje privado</p>
                     </div>
                     <div class="tipo-card" onclick="seleccionarTipo('colectivo')">
-                        <h3>🚌 Colectiva</h3>
-                        <p class="descuento">30% descuento</p>
+                        <h3>👥 Colectivo</h3>
+                        <p style="color:#10b981; font-weight:bold">-30% Descuento</p>
                     </div>
                 </div>
-                
                 <input type="hidden" id="tipoCarrera" value="directo">
                 
                 <div class="form-group">
-                    <label class="form-label">Punto de Recogida</label>
-                    <input type="text" class="form-input" id="origenDir" readonly placeholder="Click 'Seleccionar Origen'">
-                    <button type="button" class="btn btn-secondary" style="width:100%; margin-top:0.5rem" onclick="seleccionarOrigen()">
-                        📍 Seleccionar Origen en Mapa
-                    </button>
+                    <label class="form-label">Origen</label>
+                    <div style="display:flex; gap:0.5rem">
+                        <input type="text" class="form-input" id="origenDir" readonly placeholder="Seleccionar en mapa">
+                        <button class="btn btn-secondary" onclick="seleccionarOrigen()">📍</button>
+                    </div>
                 </div>
-                
                 <div class="form-group">
                     <label class="form-label">Destino</label>
-                    <input type="text" class="form-input" id="destinoDir" readonly placeholder="Click 'Seleccionar Destino'">
-                    <button type="button" class="btn btn-secondary" style="width:100%; margin-top:0.5rem" onclick="seleccionarDestino()">
-                        🏁 Seleccionar Destino en Mapa
-                    </button>
+                    <div style="display:flex; gap:0.5rem">
+                        <input type="text" class="form-input" id="destinoDir" readonly placeholder="Seleccionar en mapa">
+                        <button class="btn btn-secondary" onclick="seleccionarDestino()">🏁</button>
+                    </div>
                 </div>
                 
-                <div id="resumenCarrera" class="resumen" style="display:none">
-                    <h3>Resumen del Viaje</h3>
-                    <div class="resumen-item">
-                        <span>Distancia:</span>
-                        <strong id="resDistancia">-</strong>
-                    </div>
-                    <div class="resumen-item">
-                        <span>Tiempo estimado:</span>
-                        <strong id="resTiempo">-</strong>
-                    </div>
-                    <div class="resumen-item">
-                        <span>Tarifa:</span>
-                        <strong id="resPrecio" style="color:#2563eb; font-size:1.25rem">-</strong>
-                    </div>
-                    <div id="descuentoInfo" style="display:none; color:#10b981; font-weight:bold; margin-top:0.5rem">
-                        ¡Incluye 30% de descuento!
+                <div id="resumenCarrera" style="display:none; background:#f3f4f6; padding:1rem; border-radius:0.5rem; margin-top:1rem">
+                    <div style="display:flex; justify-content:space-between"><span>Distancia:</span><strong id="resDistancia">-</strong></div>
+                    <div style="display:flex; justify-content:space-between"><span>Tiempo:</span><strong id="resTiempo">-</strong></div>
+                    <div style="display:flex; justify-content:space-between; margin-top:0.5rem; font-size:1.2rem">
+                        <span>Total:</span><strong id="resPrecio" style="color:#2563eb">-</strong>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
-                <button class="btn btn-primary" onclick="solicitarCarrera()">Solicitar Carrera</button>
+                <button class="btn btn-primary" onclick="solicitarCarrera()">Pedir Mototaxi</button>
             </div>
         </div>
     </div>
     
     <div id="toast-container"></div>
-    
-    <!-- Audio notificaciones -->
-    <audio id="notificationSound" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS57OihUBELTKXh8bllHAU2jdXvz3knBSh+zPLaizsIGGS56+mjTxEJS6Lg8bllHAU1i9Tvz3YoBSh+y/HbiDgIGGS56+mjUBAKS6Pg8rpnHAU1i9Tv" type="audio/wav">
-    </audio>
-    
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <audio id="notificationSound" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU..."></audio> <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="shared/config.js"></script>
     <script src="app.js"></script>
