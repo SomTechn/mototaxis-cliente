@@ -7,63 +7,53 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #000; --bg: #fff; --gray: #f3f4f6; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+        body { margin: 0; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; background: #fff; }
         
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
 
-        /* MENU HAMBURGUESA SUPERIOR */
-        .menu-btn { position: absolute; top: 1rem; left: 1rem; z-index: 10; background: white; width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; border: none; }
+        /* MENU SUPERIOR */
+        .menu-btn { position: absolute; top: 1rem; left: 1rem; z-index: 10; background: white; border: none; width: 45px; height: 45px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-size: 1.2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
-        /* PANEL INFERIOR PRINCIPAL */
-        .bottom-sheet {
-            position: absolute; bottom: 60px; /* Deja espacio para el navbar */
-            left: 0; width: 100%; max-height: 80vh;
+        /* PANEL INFERIOR (SHEET) */
+        .sheet {
+            position: absolute; bottom: 60px; left: 0; width: 100%; 
             background: white; border-radius: 20px 20px 0 0;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.1); z-index: 20;
-            display: flex; flex-direction: column;
-            transition: transform 0.3s ease;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.1); z-index: 20;
+            display: flex; flex-direction: column; max-height: 80vh;
+            transition: transform 0.3s;
         }
         .sheet-content { padding: 1.5rem; overflow-y: auto; }
 
-        /* NAVBAR INFERIOR (TABS) */
+        /* NAVBAR (TABS) */
         .navbar {
             position: absolute; bottom: 0; width: 100%; height: 60px; background: white;
             border-top: 1px solid #eee; z-index: 30; display: flex; justify-content: space-around; align-items: center;
         }
         .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; color: #999; cursor: pointer; width: 33%; }
         .nav-item.active { color: black; font-weight: bold; }
-        .nav-icon { font-size: 20px; margin-bottom: 2px; }
+        .nav-icon { font-size: 20px; margin-bottom: 3px; }
 
         /* VISTAS */
-        .view-section { display: none; }
+        .view-section { display: none; height: 100%; width: 100%; }
         .view-section.active { display: block; }
-
-        /* COMPONENTES */
-        .input-box { background: #f3f4f6; padding: 12px; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
-        .input-box input { border: none; background: transparent; width: 100%; font-size: 14px; outline: none; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; }
         
+        /* INPUTS */
+        .input-box { background: #f3f4f6; padding: 12px; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .input-box input { border: none; background: transparent; width: 100%; outline: none; font-size: 14px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+
         .btn-black { width: 100%; background: black; color: white; padding: 15px; border-radius: 12px; font-weight: bold; border: none; font-size: 16px; margin-top: 10px; cursor: pointer; }
         .btn-black:disabled { background: #ccc; }
 
         /* ESTADO VIAJE */
-        .trip-status { display: none; } /* Oculto por defecto */
-        .trip-status.visible { display: block; }
-        
-        .driver-card { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        .driver-img { width: 50px; height: 50px; background: #eee; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        #tripInfo { display: none; }
+        .driver-card { display: flex; align-items: center; gap: 15px; padding: 15px; background: #f9f9f9; border-radius: 15px; margin-bottom: 15px; }
+        .avatar { width: 50px; height: 50px; background: #ddd; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; }
 
-        /* VISTAS FULLSCREEN (Historial/Perfil) */
+        /* FULLSCREEN VIEWS */
         .fs-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40; padding: 20px; display: none; flex-direction: column; }
         .fs-view.active { display: flex; }
-
-        /* MODAL CALIFICACION */
-        .rating-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: center; justify-content: center; }
-        .rating-box { background: white; padding: 25px; border-radius: 20px; width: 85%; text-align: center; }
-        .stars { font-size: 32px; color: #ddd; margin: 15px 0; }
-        .stars span.active { color: #FFD700; }
 
         .loader { position: fixed; inset: 0; background: white; z-index: 200; display: flex; align-items: center; justify-content: center; }
         .hidden { display: none !important; }
@@ -73,61 +63,42 @@
     <div id="loader" class="loader">Cargando...</div>
 
     <div id="view-home" class="view-section active">
-        <button class="menu-btn">☰</button>
+        <button class="menu-btn" onclick="toggleMenu()">👤</button>
         <div id="map"></div>
 
-        <div class="bottom-sheet">
+        <div class="sheet">
             <div class="sheet-content">
-                
-                <div id="requestForm">
-                    <h2 style="margin: 0 0 15px 0">¿A dónde vas?</h2>
-                    <div class="input-box">
-                        <div class="dot" style="background:black"></div>
-                        <input id="origin" readonly placeholder="Tu ubicación" onclick="setPunto('origen')">
-                    </div>
-                    <div class="input-box">
-                        <div class="dot" style="background:#FBC02D"></div>
-                        <input id="dest" readonly placeholder="Destino" onclick="setPunto('destino')">
+                <div id="reqForm">
+                    <h2 style="margin:0 0 15px 0">¿A dónde vas?</h2>
+                    <div class="input-box" onclick="setPunto('org')"><div class="dot" style="background:green"></div><input id="org" readonly placeholder="Origen"></div>
+                    <div class="input-box" onclick="setPunto('dst')"><div class="dot" style="background:red"></div><input id="dst" readonly placeholder="Destino"></div>
+                    
+                    <div id="priceBox" class="hidden" style="display:flex; justify-content:space-between; margin-top:10px; padding:15px; border:1px solid #eee; border-radius:10px">
+                        <span>🏍️ Directo</span><strong id="priceLabel">L 0</strong>
                     </div>
                     
-                    <div id="prices" class="hidden" style="margin-top:10px">
-                        <div style="display:flex; justify-content:space-between; padding:10px; border:2px solid black; border-radius:10px; background:#f9f9f9">
-                            <span>🏍️ Directo</span>
-                            <span style="font-weight:bold" id="priceLabel">L --</span>
-                        </div>
-                    </div>
-
-                    <button id="btnRequest" class="btn-black" onclick="pedirViaje()" disabled>Confirmar Ubicación</button>
+                    <button id="btnReq" class="btn-black" onclick="pedir()" disabled>Confirmar</button>
                 </div>
 
-                <div id="tripInfo" class="trip-status">
-                    <h2 id="statusTitle" style="margin:0 0 5px 0; color:#2563eb">Buscando...</h2>
-                    <p style="margin:0 0 15px 0; color:#666" id="statusSub">Conectando con conductores</p>
+                <div id="tripInfo">
+                    <h2 id="stTitle" style="color:#2563eb; margin:0">Buscando...</h2>
+                    <p id="stSub" style="color:#666; margin:5px 0 15px 0">Conectando conductores...</p>
                     
-                    <div id="driverDetails" class="hidden">
-                        <div class="driver-card">
-                            <div class="driver-img">👤</div>
-                            <div>
-                                <div style="font-weight:bold; font-size:18px" id="drvName">Nombre</div>
-                                <div style="color:#666; font-size:14px" id="drvPlate">Placa • Moto</div>
-                            </div>
-                            <div style="margin-left:auto; font-weight:bold; font-size:18px" id="drvPrice">L 0</div>
-                        </div>
-                        <div style="display:flex; gap:10px; margin-bottom:15px">
-                            <button onclick="llamar()" style="flex:1; padding:10px; background:#eee; border:none; border-radius:8px">📞 Llamar</button>
-                        </div>
+                    <div id="drvInfo" class="driver-card hidden">
+                        <div class="avatar">👤</div>
+                        <div><div style="font-weight:bold" id="dName">...</div><div style="font-size:12px; color:#666" id="dMoto">...</div></div>
+                        <button onclick="llamar()" style="margin-left:auto; border:none; background:#eee; padding:10px; border-radius:10px">📞</button>
                     </div>
-
-                    <button onclick="cancelar()" style="width:100%; padding:10px; background:none; border:1px solid #ff5252; color:#ff5252; border-radius:10px; font-weight:bold">Cancelar Viaje</button>
+                    
+                    <button onclick="cancelar()" style="width:100%; padding:10px; border:1px solid red; color:red; background:white; border-radius:10px; font-weight:bold">Cancelar</button>
                 </div>
-
             </div>
         </div>
     </div>
 
     <div id="view-history" class="fs-view">
-        <h2>Tu Historial</h2>
-        <div id="histList" style="overflow-y:auto; flex:1"></div>
+        <h2>Historial</h2>
+        <div id="histList" style="overflow-y:auto"></div>
     </div>
 
     <div id="view-profile" class="fs-view">
@@ -142,28 +113,9 @@
         <div class="nav-item" onclick="nav('profile', this)"><span class="nav-icon">👤</span>Perfil</div>
     </div>
 
-    <div id="rateModal" class="rating-modal">
-        <div class="rating-box">
-            <h3>¡Llegaste!</h3>
-            <p>Califica tu experiencia</p>
-            <div class="stars">
-                <span onclick="star(1)">★</span><span onclick="star(2)">★</span><span onclick="star(3)">★</span><span onclick="star(4)">★</span><span onclick="star(5)">★</span>
-            </div>
-            <button class="btn-black" onclick="sendRate()">Enviar</button>
-        </div>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="../shared/config.js"></script>
     <script src="app.js"></script>
-    <script>
-        function nav(v, el) {
-            if(v==='home') { document.getElementById('view-home').style.display='block'; document.getElementById('view-history').classList.remove('active'); document.getElementById('view-profile').classList.remove('active'); }
-            else { document.getElementById('view-home').style.display='none'; document.querySelectorAll('.fs-view').forEach(x=>x.classList.remove('active')); document.getElementById('view-'+v).classList.add('active'); if(v==='history') loadHist(); }
-            document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); el.classList.add('active');
-        }
-        function star(n) { window.rateVal=n; document.querySelectorAll('.stars span').forEach((s,i)=>s.style.color=i<n?'#FFD700':'#ddd'); }
-    </script>
 </body>
 </html>
