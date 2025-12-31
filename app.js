@@ -1,4 +1,7 @@
-// APP CLIENTE (FINAL V4)
+// ============================================
+// APP CLIENTE - FINAL (CON TIEMPOS DE LLEGADA)
+// ============================================
+
 let mapa, usuario, clienteId, carreraActiva = null;
 let origenMarker, destinoMarker, rutaLayer, conductorMarker, userMarker;
 let origenCoords, destinoCoords, modoSeleccion;
@@ -11,7 +14,6 @@ async function init() {
         await cargarDatosCliente();
         
         inicializarMapa();
-        // inicializarEventos(); <-- ELIMINADO PARA EVITAR ERROR
         
         if (typeof PRICING_CONFIG !== 'undefined') await PRICING_CONFIG.cargarDesdeDB();
         
@@ -37,10 +39,9 @@ async function cargarDatosCliente() {
 
 function inicializarMapa() {
     mapa = L.map('map', { zoomControl: false }).setView([15.5048, -88.0250], 14);
-    // Cambiado a OSM normal porque es más estable
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
-    
     mapa.on('click', e => { if (modoSeleccion) setPunto(e.latlng); });
+    
     if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
         const lat = pos.coords.latitude, lng = pos.coords.longitude;
         mapa.setView([lat, lng], 15);
@@ -49,20 +50,13 @@ function inicializarMapa() {
     });
 }
 
-function focusInput(modo) {
-    modoSeleccion = modo;
-    document.getElementById('mainSheet').classList.add('minimized');
-}
-
-function restoreSheet() {
-    document.getElementById('mainSheet').classList.remove('minimized');
-    modoSeleccion = null;
-}
+// ... Lógica de selección de puntos (setPunto, focusInput, etc. igual que antes) ...
+function focusInput(modo) { modoSeleccion = modo; document.getElementById('mainSheet').classList.add('minimized'); }
+function restoreSheet() { document.getElementById('mainSheet').classList.remove('minimized'); modoSeleccion = null; }
 
 async function setPunto(latlng, tipoOverride = null, auto = false) {
     const tipo = tipoOverride || modoSeleccion;
     if (!tipo) return;
-
     const val = { lat: latlng.lat, lng: latlng.lng };
     const dir = `${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`;
 
@@ -79,11 +73,7 @@ async function setPunto(latlng, tipoOverride = null, auto = false) {
         document.getElementById('destinoDir').value = "🏁 " + dir;
         obtenerNombre(val, 'destinoDir');
     }
-
-    if (!auto) {
-        restoreSheet();
-        if (origenCoords && destinoCoords) calcularRuta();
-    }
+    if (!auto) { restoreSheet(); if (origenCoords && destinoCoords) calcularRuta(); }
 }
 
 async function obtenerNombre(c, id) {
@@ -99,7 +89,7 @@ async function obtenerNombre(c, id) {
 }
 
 async function calcularRuta() {
-    document.getElementById('tripDetails').classList.remove('hidden');
+    document.getElementById('tripOptions').classList.remove('hidden');
     const btn = document.getElementById('btnSolicitar');
     btn.textContent = 'Calculando...'; btn.disabled = true;
 
@@ -108,38 +98,31 @@ async function calcularRuta() {
         const res = await fetch(url);
         const data = await res.json();
         
-        let dist = 0, time = 0;
-        
         if (data.routes?.[0]) {
             const r = data.routes[0];
-            dist = r.distance/1000;
-            time = Math.ceil(r.duration/60);
+            const dist = r.distance/1000;
+            const time = Math.ceil(r.duration/60);
+            const tipo = document.getElementById('tipoCarrera').value;
+            const precio = PRICING_CONFIG.calcularPrecio(dist, tipo === 'colectivo');
+
+            document.getElementById('resDistTime').textContent = `${dist.toFixed(1)} km • ${time} min`;
+            document.getElementById('resPrice').textContent = `L ${precio.toFixed(0)}`;
             
             if (rutaLayer) mapa.removeLayer(rutaLayer);
             rutaLayer = L.geoJSON(r.geometry, {style: {color:'black', weight:4}}).addTo(mapa);
             mapa.fitBounds(rutaLayer.getBounds(), {padding:[50,200]});
-        } else {
-            dist = Math.sqrt(Math.pow(destinoCoords.lat - origenCoords.lat, 2) + Math.pow(destinoCoords.lng - origenCoords.lng, 2)) * 111;
-            time = Math.ceil(dist * 3);
+            btn.textContent = 'Confirmar Mototaxi'; btn.disabled = false;
         }
-
-        const tipo = document.getElementById('tipoCarrera').value;
-        const precio = PRICING_CONFIG.calcularPrecio(dist, tipo === 'colectivo');
-
-        document.getElementById('resDistTime').textContent = `${dist.toFixed(1)} km • ${time} min`;
-        document.getElementById('resPrice').textContent = `L ${precio.toFixed(0)}`;
-        btn.textContent = 'Confirmar Mototaxi'; btn.disabled = false;
-
-    } catch(e) { btn.textContent = 'Reintentar Ruta'; btn.disabled = false; }
+    } catch(e) { btn.textContent = 'Error ruta (Reintentar)'; btn.disabled = false; }
 }
 
 async function solicitarCarrera() {
     const p = parseFloat(document.getElementById('resPrice').textContent.replace('L ',''));
     const distStr = document.getElementById('resDistTime').textContent.split(' km')[0];
     
-    // CAMBIO DE ESTADO VISUAL INMEDIATO
     document.getElementById('panelRequest').classList.add('hidden');
     document.getElementById('panelActive').classList.remove('hidden');
+    document.getElementById('statusTitle').textContent = "Buscando...";
 
     const { error } = await window.supabaseClient.from('carreras').insert({
         cliente_id: clienteId, tipo: document.getElementById('tipoCarrera').value, precio: p, distancia_km: parseFloat(distStr),
@@ -147,73 +130,150 @@ async function solicitarCarrera() {
         destino_lat: destinoCoords.lat, destino_lng: destinoCoords.lng, destino_direccion: destinoCoords.dir,
         estado: 'buscando'
     });
-
     if (error) { alert(error.message); cargarCarreraActiva(); } else { cargarCarreraActiva(); }
 }
 
+// --- ESTADOS Y UI ---
 async function cargarCarreraActiva() {
     const { data } = await window.supabaseClient.from('carreras').select('*, conductores(placa, modelo_moto, perfiles(nombre, telefono))')
         .eq('cliente_id', clienteId).in('estado',['buscando','aceptada','en_camino','en_curso']).maybeSingle();
-    
     carreraActiva = data;
     renderUI();
 }
 
 function renderUI() {
-    const req = document.getElementById('panelRequest');
-    const act = document.getElementById('panelActive');
-    const info = document.getElementById('driverInfo');
-    const radar = document.getElementById('radarAnim');
+    const reqPanel = document.getElementById('panelRequest');
+    const actPanel = document.getElementById('panelActive');
+    const infoDriver = document.getElementById('driverCard');
+    const radar = document.getElementById('radarIcon');
     
     if (!carreraActiva) {
-        req.classList.remove('hidden');
-        act.classList.add('hidden');
+        reqPanel.classList.remove('hidden');
+        actPanel.classList.add('hidden');
         if(conductorMarker) mapa.removeLayer(conductorMarker);
         if(trackingInterval) clearInterval(trackingInterval);
         return;
     }
 
-    req.classList.add('hidden');
-    act.classList.remove('hidden');
+    reqPanel.classList.add('hidden');
+    actPanel.classList.remove('hidden');
     
     const s = carreraActiva.estado;
-    const t = document.getElementById('statusTitle');
-    const sub = document.getElementById('statusSub');
-
+    
+    // ESTADO: BUSCANDO
     if (s === 'buscando') {
-        t.textContent = "🔎 Buscando...";
-        sub.textContent = "Contactando conductores...";
-        info.classList.add('hidden');
+        document.getElementById('statusTitle').textContent = "🔎 Buscando...";
+        document.getElementById('statusSub').textContent = "Contactando conductores...";
+        infoDriver.classList.add('hidden');
         radar.innerHTML = "🔎";
-    } else {
-        info.classList.remove('hidden');
-        const c = carreraActiva.conductores;
-        document.getElementById('drvName').textContent = c?.perfiles?.nombre || 'Conductor';
-        document.getElementById('drvPlaca').textContent = `${c?.modelo_moto} • ${c?.placa}`;
-        window.driverPhone = c?.perfiles?.telefono;
-        radar.innerHTML = s==='en_curso' ? '🚀' : '🚕';
-        
-        if(carreraActiva.conductor_id) iniciarTracking(carreraActiva.conductor_id);
-
-        if (s === 'en_curso') {
-            t.textContent = "En viaje";
-            sub.textContent = "Disfruta el recorrido";
-        } else {
-            t.textContent = "Conductor en camino";
-            sub.textContent = "Llega pronto";
-        }
+        return;
     }
+
+    // ESTADO: CONDUCTOR ASIGNADO (Aceptada / En camino / En curso)
+    infoDriver.classList.remove('hidden');
+    const c = carreraActiva.conductores;
+    
+    // HTML DINÁMICO CON DATOS DEL CONDUCTOR Y TIEMPOS
+    const htmlInfo = `
+        <div class="driver-row">
+            <div class="driver-avatar">👤</div>
+            <div style="flex:1">
+                <div style="font-size:18px; font-weight:800; color:#1e293b">${c?.perfiles?.nombre || 'Conductor'}</div>
+                <div style="color:#64748b; font-size:14px">${c?.modelo_moto} • ${c?.placa}</div>
+            </div>
+            <div style="text-align:right">
+                <div style="font-weight:bold; font-size:18px; color:#2563eb">L ${carreraActiva.precio}</div>
+                <div style="font-size:12px; color:#94a3b8">EFECTIVO</div>
+            </div>
+        </div>
+
+        <div class="eta-grid">
+            <div class="eta-box">
+                <div class="eta-label">Llega a ti en</div>
+                <div class="eta-value green" id="etaPickup">-- min</div>
+            </div>
+            <div class="eta-box">
+                <div class="eta-label">Llegada Destino</div>
+                <div class="eta-value blue" id="etaDest">--:--</div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <button class="act-btn" onclick="callDriver()">📞 Llamar</button>
+            <button class="act-btn" onclick="alert('Compartir')">🔗 Compartir</button>
+        </div>
+    `;
+    
+    infoDriver.innerHTML = htmlInfo;
+    window.driverPhone = c?.perfiles?.telefono;
+
+    if (s === 'en_curso') {
+        document.getElementById('statusTitle').textContent = "🚀 En viaje";
+        document.getElementById('statusSub').textContent = "Hacia " + carreraActiva.destino_direccion.split(',')[0];
+        radar.innerHTML = "🚀";
+        // Si está en curso, el tiempo "A recoger" es 0 o irrelevante
+        setTimeout(() => document.getElementById('etaPickup').textContent = "¡A bordo!", 100);
+    } else {
+        document.getElementById('statusTitle').textContent = "🚕 Conductor en camino";
+        document.getElementById('statusSub').textContent = "Tu mototaxi está llegando";
+        radar.innerHTML = "🚕";
+    }
+
+    if(carreraActiva.conductor_id) iniciarTracking(carreraActiva.conductor_id);
 }
 
 function iniciarTracking(driverId) {
     if(trackingInterval) clearInterval(trackingInterval);
-    trackingInterval = setInterval(async () => {
+    
+    // Función de actualización inmediata
+    const update = async () => {
         const { data } = await window.supabaseClient.from('conductores').select('latitud,longitud').eq('id', driverId).single();
+        
         if(data && data.latitud) {
-            if(conductorMarker) conductorMarker.setLatLng([data.latitud, data.longitud]);
-            else conductorMarker = L.marker([data.latitud, data.longitud], {icon: L.divIcon({html:'🏍️', className:'emoji-icon'})}).addTo(mapa);
+            const driverPos = { lat: data.latitud, lng: data.longitud };
+            
+            // 1. Mover icono en mapa
+            if(conductorMarker) conductorMarker.setLatLng([driverPos.lat, driverPos.lng]);
+            else conductorMarker = L.marker([driverPos.lat, driverPos.lng], {icon: L.divIcon({html:'🏍️', className:'emoji-icon'})}).addTo(mapa);
+            
+            // 2. CALCULAR TIEMPOS REALES (OSRM)
+            actualizarTiemposReales(driverPos);
         }
-    }, 4000);
+    };
+
+    update(); // Ejecutar ya
+    trackingInterval = setInterval(update, 5000); // Repetir cada 5s
+}
+
+async function actualizarTiemposReales(driverPos) {
+    // Si la carrera no está en UI o faltan elementos, salir
+    if (!carreraActiva || !document.getElementById('etaPickup')) return;
+
+    try {
+        const estado = carreraActiva.estado;
+        let minToPickup = 0;
+
+        // Calcular: Conductor -> Cliente (Solo si no ha recogido)
+        if (estado === 'aceptada' || estado === 'en_camino') {
+            const resPick = await fetch(`https://router.project-osrm.org/route/v1/driving/${driverPos.lng},${driverPos.lat};${carreraActiva.origen_lng},${carreraActiva.origen_lat}?overview=false`);
+            const dataPick = await resPick.json();
+            if (dataPick.routes?.[0]) {
+                minToPickup = Math.ceil(dataPick.routes[0].duration / 60);
+                document.getElementById('etaPickup').textContent = minToPickup + " min";
+            }
+        }
+
+        // Calcular: Hora Llegada Destino (Ahora + Tiempo a recoger + Tiempo Viaje)
+        // Usamos el tiempo estimado del viaje original como base para simplificar
+        const tiempoViaje = carreraActiva.tiempo_estimado_min || 15; 
+        const minutosTotales = (estado === 'en_curso' ? 0 : minToPickup) + tiempoViaje;
+        
+        const arrivalDate = new Date(new Date().getTime() + minutosTotales * 60000);
+        const horaLlegada = arrivalDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        document.getElementById('etaDest').textContent = horaLlegada;
+
+    } catch (e) { console.warn('Error calculando tiempos ETA', e); }
 }
 
 function suscribirse() {
@@ -238,9 +298,7 @@ async function enviarCalificacion() {
 }
 
 async function cancelarCarrera() {
-    if(confirm('¿Cancelar?')) {
-        await window.supabaseClient.from('carreras').update({estado:'cancelada_cliente'}).eq('id', carreraActiva.id);
-    }
+    if(confirm('¿Cancelar?')) await window.supabaseClient.from('carreras').update({estado:'cancelada_cliente'}).eq('id', carreraActiva.id);
 }
 
 function setTipo(t) { 
