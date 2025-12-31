@@ -2,71 +2,156 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cliente - Mototaxis</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="shared/styles.css">
     <style>
-        /* Estilos específicos Cliente */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, sans-serif; overflow: hidden; }
+        /* RESET & BASICS */
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
         
-        .header { background: #2563eb; color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; height: 64px; }
-        .container { display: flex; height: calc(100vh - 64px); }
-        .sidebar { width: 400px; background: white; padding: 1.5rem; border-right: 1px solid #e5e7eb; overflow-y: auto; display: flex; flex-direction: column; }
-        .map-container { flex: 1; }
+        /* HEADER */
+        .header {
+            background: #2563eb; color: white; padding: 0 1rem; 
+            height: 60px; display: flex; justify-content: space-between; align-items: center; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 2000;
+        }
+        
+        /* LAYOUT PRINCIPAL */
+        .container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+        }
+        
+        /* MAPA (Fondo) */
+        .map-container {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+        }
         #map { width: 100%; height: 100%; }
-        
-        /* Animación de búsqueda */
-        #searchingAnimation {
+
+        /* SIDEBAR / BOTTOM SHEET */
+        .sidebar {
+            width: 400px;
+            background: white;
+            z-index: 1000;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            text-align: center;
-        }
-        .pulse-ring {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: #dbeafe;
-            position: relative;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-        }
-        .pulse-ring::before {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            border: 4px solid #3b82f6;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.5); opacity: 0; }
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
         }
 
-        /* Estilos Tab y Cards */
+        /* Handle para móviles (Barrita gris para arrastrar) */
+        .sheet-handle {
+            display: none; /* Oculto en escritorio */
+            width: 100%;
+            height: 24px;
+            background: white;
+            justify-content: center;
+            align-items: center;
+            border-radius: 20px 20px 0 0;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .sheet-handle-bar {
+            width: 40px;
+            height: 4px;
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+
+        /* Contenido Scrolleable del Sidebar */
+        .sidebar-content {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* TABS */
         .tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 1rem; }
-        .tab-btn { flex: 1; padding: 0.75rem; background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; color: #6b7280; }
+        .tab-btn { flex: 1; padding: 0.75rem; background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 600; color: #6b7280; transition: 0.2s; }
         .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
-        .tab-pane { display: none; }
+        .tab-pane { display: none; animation: fadeIn 0.3s; }
         .tab-pane.active { display: block; }
-        
-        .tipo-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+
+        /* MODAL */
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white; border-radius: 1rem; width: 90%; max-width: 500px;
+            max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;
+        }
+        .modal-body { padding: 1.5rem; }
+        .modal-footer { padding: 1rem; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+        /* ESTILOS DE TARJETAS */
+        .card { background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .tipo-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
         .tipo-card { padding: 1rem; border: 2px solid #e5e7eb; border-radius: 0.5rem; cursor: pointer; text-align: center; }
         .tipo-card.active { border-color: #2563eb; background: #eff6ff; }
-        
+
+        /* ANIMACIONES */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .pulse-ring { width: 40px; height: 40px; border-radius: 50%; background: #dbeafe; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; position: relative; }
+        .pulse-ring::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 3px solid #3b82f6; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        /* =========================================
+           RESPONSIVE MOBILE (Estilo Bottom Sheet)
+           ========================================= */
         @media (max-width: 768px) {
             .container { flex-direction: column; }
-            .sidebar { width: 100%; height: 45vh; order: 2; }
-            .map-container { height: 55vh; order: 1; }
+            
+            /* El mapa ocupa todo el fondo */
+            .map-container {
+                position: absolute;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                z-index: 0;
+            }
+
+            /* El sidebar se convierte en panel deslizante */
+            .sidebar {
+                position: absolute;
+                bottom: 0; left: 0;
+                width: 100%;
+                height: auto;
+                max-height: 85vh; /* Máximo alto expandido */
+                background: white;
+                border-radius: 20px 20px 0 0;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+                transition: transform 0.3s ease;
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
+            }
+
+            /* Estado colapsado (solo se ve un poco) */
+            .sidebar.collapsed {
+                transform: translateY(calc(100% - 180px)); /* Muestra 180px */
+            }
+            
+            /* Estado expandido */
+            .sidebar.expanded {
+                transform: translateY(0);
+            }
+
+            /* Mostrar la barra de arrastre */
+            .sheet-handle { display: flex; }
+
+            /* Ajustar padding para scroll seguro en móviles */
+            .sidebar-content {
+                padding-bottom: 80px; /* Espacio extra abajo para el scroll */
+                overflow-y: auto;
+                max-height: 80vh;
+            }
         }
     </style>
 </head>
@@ -74,38 +159,42 @@
     <div id="loader" class="loader-fullscreen"><div class="loader"></div><p>Cargando...</p></div>
     
     <header class="header">
-        <h1>🏍️ Mototaxis</h1>
+        <h3>🏍️ Mototaxis</h3>
         <div style="display:flex; align-items:center; gap:10px">
-            <span id="welcomeMsg" style="font-size:0.9rem"></span>
-            <button class="btn btn-danger" onclick="window.supabaseClient.auth.signOut().then(()=>window.location.href='login.html')">Salir</button>
+            <span id="welcomeMsg" style="font-size:0.8rem; display:none;"></span>
+            <button class="btn btn-sm btn-danger" onclick="window.supabaseClient.auth.signOut().then(()=>window.location.href='login.html')">Salir</button>
         </div>
     </header>
     
     <div class="container">
-        <aside class="sidebar">
-            <button class="btn btn-primary btn-block mb-2" onclick="abrirModalCarrera()" style="padding: 1rem; font-size: 1.1rem;">
-                📍 Solicitar Nuevo Viaje
-            </button>
-            
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="activa">Estado Actual</button>
-                <button class="tab-btn" data-tab="historial">Historial</button>
+        <aside class="sidebar collapsed" id="mainSidebar">
+            <div class="sheet-handle" onclick="toggleSidebar()">
+                <div class="sheet-handle-bar"></div>
             </div>
-            
-            <div id="tab-activa" class="tab-pane active">
-                <div id="searchingAnimation" class="hidden">
-                    <div class="pulse-ring">🔍</div>
-                    <h3>Buscando conductor...</h3>
-                    <p style="color:#666; margin-top:0.5rem">Estamos contactando a las mototaxis más cercanas.</p>
+
+            <div class="sidebar-content">
+                <button class="btn btn-primary btn-block mb-2" onclick="abrirModalCarrera()" style="padding: 1rem; font-size: 1.1rem; width:100%">
+                    📍 Solicitar Nuevo Viaje
+                </button>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="activa" onclick="cambiarTab('activa')">Viaje Actual</button>
+                    <button class="tab-btn" data-tab="historial" onclick="cambiarTab('historial')">Historial</button>
                 </div>
                 
-                <div id="carreraActiva">
-                    <p style="text-align:center; color:#6b7280; margin-top:2rem">No tienes viajes en curso</p>
+                <div id="tab-activa" class="tab-pane active">
+                    <div id="searchingAnimation" class="hidden" style="text-align:center; padding:1rem;">
+                        <div class="pulse-ring">🔍</div>
+                        <h3>Buscando...</h3>
+                    </div>
+                    <div id="carreraActiva">
+                        <p style="text-align:center; color:#6b7280; margin-top:1rem">No tienes viajes activos</p>
+                    </div>
                 </div>
-            </div>
-            
-            <div id="tab-historial" class="tab-pane">
-                <div id="historialCarreras"></div>
+                
+                <div id="tab-historial" class="tab-pane">
+                    <div id="historialCarreras"></div>
+                </div>
             </div>
         </aside>
         
@@ -116,45 +205,36 @@
     
     <div id="modalCarrera" class="modal">
         <div class="modal-content">
-            <div class="modal-header">
+            <div style="padding:1rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
                 <h2>Nuevo Viaje</h2>
-                <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">✕</button>
+                <button onclick="cerrarModal()" style="border:none; background:none; font-size:1.5rem">✕</button>
             </div>
             <div class="modal-body">
-                <h3>Tipo de Servicio</h3>
                 <div class="tipo-selector">
-                    <div class="tipo-card active" onclick="seleccionarTipo('directo')">
-                        <h3>⚡ Directo</h3>
-                        <p>Viaje privado</p>
-                    </div>
-                    <div class="tipo-card" onclick="seleccionarTipo('colectivo')">
-                        <h3>👥 Colectivo</h3>
-                        <p style="color:#10b981; font-weight:bold">-30% Descuento</p>
-                    </div>
+                    <div class="tipo-card active" onclick="seleccionarTipo('directo')">⚡ Directo</div>
+                    <div class="tipo-card" onclick="seleccionarTipo('colectivo')">👥 Colectivo <br><small style="color:green">-30%</small></div>
                 </div>
                 <input type="hidden" id="tipoCarrera" value="directo">
                 
-                <div class="form-group">
-                    <label class="form-label">Origen</label>
-                    <div style="display:flex; gap:0.5rem">
-                        <input type="text" class="form-input" id="origenDir" readonly placeholder="Seleccionar en mapa">
+                <div class="form-group" style="margin-bottom:1rem">
+                    <label>Origen</label>
+                    <div style="display:flex; gap:5px">
+                        <input type="text" class="form-input" id="origenDir" readonly placeholder="Seleccionar en mapa" style="width:100%; padding:0.5rem">
                         <button class="btn btn-secondary" onclick="seleccionarOrigen()">📍</button>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Destino</label>
-                    <div style="display:flex; gap:0.5rem">
-                        <input type="text" class="form-input" id="destinoDir" readonly placeholder="Seleccionar en mapa">
+                    <label>Destino</label>
+                    <div style="display:flex; gap:5px">
+                        <input type="text" class="form-input" id="destinoDir" readonly placeholder="Seleccionar en mapa" style="width:100%; padding:0.5rem">
                         <button class="btn btn-secondary" onclick="seleccionarDestino()">🏁</button>
                     </div>
                 </div>
                 
-                <div id="resumenCarrera" style="display:none; background:#f3f4f6; padding:1rem; border-radius:0.5rem; margin-top:1rem">
+                <div id="resumenCarrera" style="display:none; background:#f9fafb; padding:1rem; margin-top:1rem; border-radius:0.5rem">
                     <div style="display:flex; justify-content:space-between"><span>Distancia:</span><strong id="resDistancia">-</strong></div>
                     <div style="display:flex; justify-content:space-between"><span>Tiempo:</span><strong id="resTiempo">-</strong></div>
-                    <div style="display:flex; justify-content:space-between; margin-top:0.5rem; font-size:1.2rem">
-                        <span>Total:</span><strong id="resPrecio" style="color:#2563eb">-</strong>
-                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:0.5rem; color:#2563eb"><span>Total:</span><strong id="resPrecio">-</strong></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -163,11 +243,42 @@
             </div>
         </div>
     </div>
-    
+
     <div id="toast-container"></div>
-    <audio id="notificationSound" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU..."></audio> <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <audio id="notificationSound" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU..."></audio>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="shared/config.js"></script>
     <script src="app.js"></script>
+
+    <script>
+        // Lógica simple de UI para móviles
+        function toggleSidebar() {
+            const sb = document.getElementById('mainSidebar');
+            if (sb.classList.contains('collapsed')) {
+                sb.classList.remove('collapsed');
+                sb.classList.add('expanded');
+            } else {
+                sb.classList.remove('expanded');
+                sb.classList.add('collapsed');
+            }
+        }
+        
+        function expandSidebar() {
+            const sb = document.getElementById('mainSidebar');
+            sb.classList.remove('collapsed');
+            sb.classList.add('expanded');
+        }
+
+        function cambiarTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+            // Al cambiar tab, expandimos para ver contenido
+            expandSidebar();
+        }
+    </script>
 </body>
 </html>
