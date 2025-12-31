@@ -98,4 +98,92 @@
                 <div id="tripDetails" class="hidden">
                     <div class="fare-box">
                         <div>
-                            <div style="font-size:12px; color:#666">ESTIM
+                            <div style="font-size:12px; color:#666">ESTIMADO</div>
+                            <div style="font-weight:600" id="resDistTime">0 km • 0 min</div>
+                        </div>
+                        <div class="fare-price" id="resPrice">L --</div>
+                    </div>
+                    
+                    <div style="display:flex; gap:10px; margin-bottom:10px">
+                        <button class="btn-black" style="background:#f3f4f6; color:black; border:2px solid #2563eb" id="btnDirecto" onclick="setTipo('directo')">🏍️ Directo</button>
+                        <button class="btn-black" style="background:white; color:black; border:1px solid #ddd" id="btnColectivo" onclick="setTipo('colectivo')">🚐 Colectivo</button>
+                    </div>
+                    <input type="hidden" id="tipoCarrera" value="directo">
+
+                    <button id="btnSolicitar" class="btn-black" onclick="solicitarCarrera()">Confirmar Mototaxi</button>
+                </div>
+            </div>
+
+            <div id="panelActive" class="hidden">
+                <div class="searching-box">
+                    <div class="pulse-radar" id="radarAnim">🔎</div>
+                    <h2 id="statusTitle" style="color:#2563eb; margin:0 0 5px 0">Buscando...</h2>
+                    <p id="statusSub" style="color:#666; margin:0 0 20px 0">Contactando conductores cercanos</p>
+                    
+                    <div id="driverInfo" class="hidden" style="background:#f9f9f9; padding:15px; border-radius:16px; text-align:left; margin-bottom:15px">
+                        <div style="display:flex; justify-content:space-between; align-items:center">
+                            <div>
+                                <div style="font-weight:bold; font-size:18px" id="drvName">Conductor</div>
+                                <div style="color:#666" id="drvPlaca">...</div>
+                            </div>
+                            <div style="font-size:30px">🏍️</div>
+                        </div>
+                        <div style="margin-top:15px; display:grid; grid-template-columns:1fr 1fr; gap:10px">
+                            <button onclick="callDriver()" style="padding:10px; border-radius:8px; border:1px solid #ddd; background:white">📞 Llamar</button>
+                            <button onclick="alert('Funcionalidad Waze pendiente')" style="padding:10px; border-radius:8px; border:1px solid #ddd; background:white">🗺️ Ruta</button>
+                        </div>
+                    </div>
+
+                    <button class="btn-red" onclick="cancelarCarrera()">Cancelar Viaje</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="drawer-overlay" onclick="closeDrawer()"></div>
+    <div class="drawer" id="drawer">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+            <h2>Menú</h2>
+            <button onclick="closeDrawer()" style="background:none; border:none; font-size:24px">✕</button>
+        </div>
+        <div id="profileName" style="margin-bottom:20px; color:#666">Usuario</div>
+        <div class="nav-item" onclick="verHistorial()">🕒 Historial de Viajes</div>
+        <div class="nav-item" style="color:#dc2626; margin-top:auto" onclick="logout()">Cerrar Sesión</div>
+    </div>
+
+    <div id="historyModal" class="modal-overlay">
+        <div class="modal-box" style="text-align:left; height:70vh; display:flex; flex-direction:column">
+            <h3>Mis Viajes</h3>
+            <div id="historyList" style="flex:1; overflow-y:auto; margin:10px 0">Cargando...</div>
+            <button class="btn-black" onclick="document.getElementById('historyModal').style.display='none'">Cerrar</button>
+        </div>
+    </div>
+
+    <div id="rateModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>¡Viaje Finalizado!</h3>
+            <p>Califica tu experiencia</p>
+            <div class="stars">
+                <span onclick="rate(1)">★</span><span onclick="rate(2)">★</span><span onclick="rate(3)">★</span><span onclick="rate(4)">★</span><span onclick="rate(5)">★</span>
+            </div>
+            <button class="btn-black" onclick="enviarCalificacion()">Enviar</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+    <script src="../shared/config.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Función que faltaba
+        function toggleSheet() {
+            const s = document.getElementById('mainSheet');
+            s.classList.toggle('minimized');
+        }
+        
+        function openDrawer() { document.getElementById('drawer').classList.add('open'); document.querySelector('.drawer-overlay').style.display='block'; }
+        function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.querySelector('.drawer-overlay').style.display='none'; }
+    </script>
+</body>
+</html>
