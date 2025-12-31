@@ -4,203 +4,166 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cliente</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { 
-            --primary: #000000; 
-            --accent: #2563eb;
-            --bg: #ffffff; 
-            --text-dark: #1e293b;
-            --text-light: #64748b;
-        }
+        :root { --primary: #000; --bg: #fff; --gray: #f3f4f6; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
         
-        body { font-family: 'Inter', sans-serif; margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; background: var(--bg); }
-        
-        #map { position: absolute; inset: 0; z-index: 0; }
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
 
-        /* HEADER FLOTANTE */
-        .header-float { position: absolute; top: 1rem; left: 1rem; right: 1rem; z-index: 10; display: flex; justify-content: space-between; pointer-events: none; }
-        .menu-btn { pointer-events: auto; background: white; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: none; font-size: 1.5rem; cursor: pointer; }
+        /* MENU HAMBURGUESA SUPERIOR */
+        .menu-btn { position: absolute; top: 1rem; left: 1rem; z-index: 10; background: white; width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; border: none; }
 
-        /* SHEET DESLIZANTE */
-        .sheet {
-            position: absolute; bottom: 0; left: 0; width: 100%;
+        /* PANEL INFERIOR PRINCIPAL */
+        .bottom-sheet {
+            position: absolute; bottom: 60px; /* Deja espacio para el navbar */
+            left: 0; width: 100%; max-height: 80vh;
             background: white; border-radius: 20px 20px 0 0;
-            box-shadow: 0 -5px 25px rgba(0,0,0,0.1); z-index: 40;
-            max-height: 85vh; display: flex; flex-direction: column;
-            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            padding-bottom: 20px;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.1); z-index: 20;
+            display: flex; flex-direction: column;
+            transition: transform 0.3s ease;
         }
-        .sheet.minimized { transform: translateY(calc(100% - 60px)); }
+        .sheet-content { padding: 1.5rem; overflow-y: auto; }
 
-        .sheet-handle { height: 30px; display: flex; justify-content: center; align-items: center; cursor: grab; }
-        .sheet-bar { width: 40px; height: 4px; background: #e0e0e0; border-radius: 2px; }
-        .sheet-content { padding: 0 20px; overflow-y: auto; }
+        /* NAVBAR INFERIOR (TABS) */
+        .navbar {
+            position: absolute; bottom: 0; width: 100%; height: 60px; background: white;
+            border-top: 1px solid #eee; z-index: 30; display: flex; justify-content: space-around; align-items: center;
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; color: #999; cursor: pointer; width: 33%; }
+        .nav-item.active { color: black; font-weight: bold; }
+        .nav-icon { font-size: 20px; margin-bottom: 2px; }
 
-        /* --- ESTADO 1: SOLICITUD --- */
-        .input-group { background: #f9f9f9; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
-        .input-row { display: flex; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .input-row:last-child { margin-bottom: 0; border: none; padding-bottom: 0; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
-        .address-inp { border: none; background: transparent; width: 100%; font-size: 14px; font-weight: 600; outline: none; text-overflow: ellipsis; }
+        /* VISTAS */
+        .view-section { display: none; }
+        .view-section.active { display: block; }
 
-        .fare-box { display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 15px; border-radius: 10px; margin-bottom: 15px; }
-        .fare-price { font-size: 1.5rem; font-weight: 800; color: #15803d; }
-
-        /* --- ESTADO 2: ACTIVO & DRIVER INFO --- */
-        .searching-box { text-align: center; padding: 20px 0; }
-        .pulse-radar { width: 60px; height: 60px; background: #e0f2fe; border-radius: 50%; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; position: relative; font-size: 24px; }
-        .pulse-radar::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 4px solid var(--accent); animation: ripple 1.5s infinite; }
-        @keyframes ripple { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
-
-        /* TARJETA CONDUCTOR */
-        .driver-card { background: white;  padding: 5px; text-align: left; margin-bottom: 15px; }
+        /* COMPONENTES */
+        .input-box { background: #f3f4f6; padding: 12px; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+        .input-box input { border: none; background: transparent; width: 100%; font-size: 14px; outline: none; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
         
-        .driver-row {
-            display: flex; align-items: center; gap: 12px; padding-bottom: 15px;
-            border-bottom: 1px solid #f1f5f9; margin-bottom: 10px;
-        }
-        .driver-avatar {
-            width: 50px; height: 50px; background: #e0f2fe; color: var(--accent);
-            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
-        }
-
-        /* TIEMPOS DE LLEGADA (NUEVO) */
-        .eta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; margin-bottom: 15px; }
-        .eta-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; border-radius: 12px; text-align: center; }
-        .eta-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
-        .eta-value { font-size: 1.1rem; font-weight: 800; color: #0f172a; }
-        .eta-value.green { color: #16a34a; }
-        .eta-value.blue { color: var(--accent); }
-
-        .act-btn { padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; font-weight: 600; cursor: pointer; color: var(--text-dark); width: 100%; }
-
-        /* BOTONES COMUNES */
-        .btn-black { background: var(--primary); color: white; width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; margin-top: 10px; cursor: pointer; }
+        .btn-black { width: 100%; background: black; color: white; padding: 15px; border-radius: 12px; font-weight: bold; border: none; font-size: 16px; margin-top: 10px; cursor: pointer; }
         .btn-black:disabled { background: #ccc; }
-        .btn-red { background: #fee2e2; color: #dc2626; width: 100%; padding: 12px; border: none; border-radius: 12px; font-weight: 600; margin-top: 10px; cursor: pointer; }
 
-        /* DRAWER & MODALS */
-        .drawer-overlay, .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; display: none; }
-        .drawer { position: fixed; top: 0; left: -100%; width: 80%; height: 100%; background: white; z-index: 60; transition: 0.3s; padding: 2rem; display: flex; flex-direction: column; }
-        .drawer.open { left: 0; }
+        /* ESTADO VIAJE */
+        .trip-status { display: none; } /* Oculto por defecto */
+        .trip-status.visible { display: block; }
         
-        .modal-box { background: white; width: 85%; border-radius: 24px; padding: 25px; text-align: center; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; display: none; }
-        .modal-box.active { display: block; animation: popUp 0.3s; }
-        .stars { font-size: 36px; color: #e5e7eb; margin: 15px 0; display: flex; justify-content: center; gap: 5px; }
-        .stars span.active { color: #fbbf24; }
+        .driver-card { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .driver-img { width: 50px; height: 50px; background: #eee; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; }
 
-        .hidden { display: none !important; }
+        /* VISTAS FULLSCREEN (Historial/Perfil) */
+        .fs-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 40; padding: 20px; display: none; flex-direction: column; }
+        .fs-view.active { display: flex; }
+
+        /* MODAL CALIFICACION */
+        .rating-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: center; justify-content: center; }
+        .rating-box { background: white; padding: 25px; border-radius: 20px; width: 85%; text-align: center; }
+        .stars { font-size: 32px; color: #ddd; margin: 15px 0; }
+        .stars span.active { color: #FFD700; }
+
         .loader { position: fixed; inset: 0; background: white; z-index: 200; display: flex; align-items: center; justify-content: center; }
-        @keyframes popUp { from{transform:translate(-50%,-50%) scale(0.9);opacity:0} to{transform:translate(-50%,-50%) scale(1);opacity:1} }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <div id="loader" class="loader">Iniciando...</div>
+    <div id="loader" class="loader">Cargando...</div>
 
-    <div id="map"></div>
+    <div id="view-home" class="view-section active">
+        <button class="menu-btn">☰</button>
+        <div id="map"></div>
 
-    <div class="header-float">
-        <button class="menu-btn" onclick="openDrawer()">☰</button>
-    </div>
-
-    <div class="sheet" id="mainSheet">
-        <div class="sheet-handle" onclick="toggleSheet()"><div class="sheet-bar"></div></div>
-        <div class="sheet-content">
-            
-            <div id="panelRequest">
-                <h2 style="margin:0 0 15px 0">¿A dónde vas?</h2>
-                <div class="input-group">
-                    <div class="input-row" onclick="focusInput('origen')">
+        <div class="bottom-sheet">
+            <div class="sheet-content">
+                
+                <div id="requestForm">
+                    <h2 style="margin: 0 0 15px 0">¿A dónde vas?</h2>
+                    <div class="input-box">
                         <div class="dot" style="background:black"></div>
-                        <input type="text" id="origenDir" class="address-inp" placeholder="Tu ubicación" readonly>
+                        <input id="origin" readonly placeholder="Tu ubicación" onclick="setPunto('origen')">
                     </div>
-                    <div class="input-row" onclick="focusInput('destino')">
+                    <div class="input-box">
                         <div class="dot" style="background:#FBC02D"></div>
-                        <input type="text" id="destinoDir" class="address-inp" placeholder="¿A dónde quieres ir?" readonly>
+                        <input id="dest" readonly placeholder="Destino" onclick="setPunto('destino')">
                     </div>
-                </div>
-
-                <div id="tripOptions" class="hidden">
-                    <div class="fare-box">
-                        <div>
-                            <div style="font-size:12px; color:#666">ESTIMADO</div>
-                            <div style="font-weight:600" id="resDistTime">0 km • 0 min</div>
+                    
+                    <div id="prices" class="hidden" style="margin-top:10px">
+                        <div style="display:flex; justify-content:space-between; padding:10px; border:2px solid black; border-radius:10px; background:#f9f9f9">
+                            <span>🏍️ Directo</span>
+                            <span style="font-weight:bold" id="priceLabel">L --</span>
                         </div>
-                        <div class="fare-price" id="resPrice">L --</div>
                     </div>
-                    
-                    <div style="display:flex; gap:10px; margin-bottom:10px">
-                        <button class="btn-black" style="background:#f3f4f6; color:black; border:2px solid #2563eb" id="btnDirecto" onclick="setTipo('directo')">🏍️ Directo</button>
-                        <button class="btn-black" style="background:white; color:black; border:1px solid #ddd" id="btnColectivo" onclick="setTipo('colectivo')">🚐 Colectivo</button>
-                    </div>
-                    <input type="hidden" id="tipoCarrera" value="directo">
 
-                    <button id="btnSolicitar" class="btn-black" onclick="solicitarCarrera()">Confirmar Mototaxi</button>
+                    <button id="btnRequest" class="btn-black" onclick="pedirViaje()" disabled>Confirmar Ubicación</button>
                 </div>
-            </div>
 
-            <div id="panelActive" class="hidden">
-                <div class="searching-box">
-                    <div class="pulse-radar" id="radarIcon">🔎</div>
+                <div id="tripInfo" class="trip-status">
+                    <h2 id="statusTitle" style="margin:0 0 5px 0; color:#2563eb">Buscando...</h2>
+                    <p style="margin:0 0 15px 0; color:#666" id="statusSub">Conectando con conductores</p>
                     
-                    <h2 id="statusTitle" style="color:var(--accent); margin:0 0 5px 0">Buscando...</h2>
-                    <p id="statusSub" style="color:#666; margin:0 0 20px 0">Contactando conductores cercanos</p>
-                    
-                    <div id="driverCard" class="driver-card hidden">
+                    <div id="driverDetails" class="hidden">
+                        <div class="driver-card">
+                            <div class="driver-img">👤</div>
+                            <div>
+                                <div style="font-weight:bold; font-size:18px" id="drvName">Nombre</div>
+                                <div style="color:#666; font-size:14px" id="drvPlate">Placa • Moto</div>
+                            </div>
+                            <div style="margin-left:auto; font-weight:bold; font-size:18px" id="drvPrice">L 0</div>
                         </div>
+                        <div style="display:flex; gap:10px; margin-bottom:15px">
+                            <button onclick="llamar()" style="flex:1; padding:10px; background:#eee; border:none; border-radius:8px">📞 Llamar</button>
+                        </div>
+                    </div>
 
-                    <button class="btn-red" onclick="cancelarCarrera()">Cancelar Viaje</button>
+                    <button onclick="cancelar()" style="width:100%; padding:10px; background:none; border:1px solid #ff5252; color:#ff5252; border-radius:10px; font-weight:bold">Cancelar Viaje</button>
                 </div>
+
             </div>
-
         </div>
     </div>
 
-    <div class="drawer-overlay" onclick="closeDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
-            <h2>Menú</h2>
-            <button onclick="closeDrawer()" style="background:none; border:none; font-size:24px">✕</button>
-        </div>
-        <div id="profileName" style="margin-bottom:20px; color:#666">Usuario</div>
-        <div class="nav-item" onclick="verHistorial()">🕒 Historial de Viajes</div>
-        <div class="nav-item" style="color:#dc2626; margin-top:auto" onclick="logout()">Cerrar Sesión</div>
+    <div id="view-history" class="fs-view">
+        <h2>Tu Historial</h2>
+        <div id="histList" style="overflow-y:auto; flex:1"></div>
     </div>
 
-    <div id="historyModalOverlay" class="modal-overlay">
-        <div class="modal-box active" style="text-align:left; height:70vh; display:flex; flex-direction:column; position:absolute;">
-            <h3>Mis Viajes</h3>
-            <div id="historyList" style="flex:1; overflow-y:auto; margin:10px 0">Cargando...</div>
-            <button class="btn-black" onclick="document.getElementById('historyModalOverlay').style.display='none'">Cerrar</button>
-        </div>
+    <div id="view-profile" class="fs-view">
+        <h2>Mi Perfil</h2>
+        <h3 id="profName">Usuario</h3>
+        <button onclick="logout()" class="btn-black" style="background:#ff5252; margin-top:auto">Cerrar Sesión</button>
     </div>
 
-    <div id="rateModalOverlay" class="modal-overlay">
-        <div class="modal-box active">
-            <h3>¡Viaje Finalizado!</h3>
+    <div class="navbar">
+        <div class="nav-item active" onclick="nav('home', this)"><span class="nav-icon">🏠</span>Inicio</div>
+        <div class="nav-item" onclick="nav('history', this)"><span class="nav-icon">🕒</span>Historial</div>
+        <div class="nav-item" onclick="nav('profile', this)"><span class="nav-icon">👤</span>Perfil</div>
+    </div>
+
+    <div id="rateModal" class="rating-modal">
+        <div class="rating-box">
+            <h3>¡Llegaste!</h3>
             <p>Califica tu experiencia</p>
             <div class="stars">
-                <span onclick="rate(1)">★</span><span onclick="rate(2)">★</span><span onclick="rate(3)">★</span><span onclick="rate(4)">★</span><span onclick="rate(5)">★</span>
+                <span onclick="star(1)">★</span><span onclick="star(2)">★</span><span onclick="star(3)">★</span><span onclick="star(4)">★</span><span onclick="star(5)">★</span>
             </div>
-            <button class="btn-black" onclick="enviarCalificacion()">Enviar</button>
+            <button class="btn-black" onclick="sendRate()">Enviar</button>
         </div>
     </div>
-
-    <audio id="notificationSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.m4a"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
     <script src="../shared/config.js"></script>
     <script src="app.js"></script>
     <script>
-        function toggleSheet() { document.getElementById('mainSheet').classList.toggle('minimized'); }
-        function openDrawer() { document.getElementById('drawer').classList.add('open'); document.querySelector('.drawer-overlay').style.display='block'; }
-        function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.querySelector('.drawer-overlay').style.display='none'; }
+        function nav(v, el) {
+            if(v==='home') { document.getElementById('view-home').style.display='block'; document.getElementById('view-history').classList.remove('active'); document.getElementById('view-profile').classList.remove('active'); }
+            else { document.getElementById('view-home').style.display='none'; document.querySelectorAll('.fs-view').forEach(x=>x.classList.remove('active')); document.getElementById('view-'+v).classList.add('active'); if(v==='history') loadHist(); }
+            document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); el.classList.add('active');
+        }
+        function star(n) { window.rateVal=n; document.querySelectorAll('.stars span').forEach((s,i)=>s.style.color=i<n?'#FFD700':'#ddd'); }
     </script>
 </body>
 </html>
