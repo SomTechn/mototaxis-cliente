@@ -7,118 +7,167 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #2563eb; --surface: #ffffff; --bg: #f3f4f6; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
-        #map { flex: 1; z-index: 1; }
+        :root { --primary: #000000; --accent: #FBC02D; --bg: #ffffff; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+        
+        /* MAPA FULLSCREEN */
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
 
-        /* HEADER */
-        .header { position: absolute; top: 1rem; left: 1rem; z-index: 20; }
-        .menu-btn { background: white; border: none; width: 44px; height: 44px; border-radius: 12px; font-size: 1.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        /* HEADER FLOTANTE */
+        .header-float { position: absolute; top: 1rem; left: 1rem; right: 1rem; z-index: 10; display: flex; justify-content: space-between; pointer-events: none; }
+        .user-pill { pointer-events: auto; background: white; padding: 8px 16px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        
+        /* BARRA NAVEGACIÓN INFERIOR */
+        .nav-bar {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 65px;
+            background: white; border-top: 1px solid #eee; z-index: 50;
+            display: flex; justify-content: space-around; align-items: center;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; color: #999; cursor: pointer; width: 33%; }
+        .nav-item.active { color: var(--primary); font-weight: bold; }
+        .nav-icon { font-size: 20px; margin-bottom: 4px; }
 
-        /* PANEL INFERIOR DESLIZANTE */
-        .bottom-sheet {
-            position: absolute; bottom: 60px; /* Espacio para tabs */
-            left: 0; width: 100%; z-index: 30;
-            background: white; border-radius: 24px 24px 0 0;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+        /* PANEL DESLIZANTE (MAIN) */
+        .sheet {
+            position: absolute; bottom: 65px; left: 0; width: 100%;
+            background: white; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.1); z-index: 40;
             max-height: 80vh; display: flex; flex-direction: column;
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
         .sheet-handle { height: 24px; display: flex; justify-content: center; align-items: center; cursor: grab; }
-        .sheet-bar { width: 40px; height: 4px; background: #e5e7eb; border-radius: 2px; }
-        .sheet-content { padding: 0 1.5rem 1.5rem; overflow-y: auto; }
+        .sheet-bar { width: 40px; height: 4px; background: #e0e0e0; border-radius: 2px; }
+        .sheet-content { padding: 0 20px 20px 20px; overflow-y: auto; }
 
-        /* TABS NAVEGACIÓN */
-        .nav-tabs {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 60px;
-            background: white; border-top: 1px solid #eee; z-index: 40;
-            display: flex; justify-content: space-around; align-items: center;
-        }
-        .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 0.75rem; color: #9ca3af; cursor: pointer; }
-        .nav-item.active { color: var(--primary); font-weight: 600; }
-        .nav-icon { font-size: 1.5rem; margin-bottom: 2px; }
+        /* VISTAS DENTRO DEL SHEET */
+        .view { display: none; }
+        .view.active { display: block; }
 
-        /* VISTAS */
-        .view-section { display: none; height: 100%; }
-        .view-section.active { display: block; }
-
-        /* ESTILOS ESPECÍFICOS */
-        .btn-primary { width: 100%; padding: 1rem; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: 700; margin-top: 1rem; }
-        .address-input { width: 100%; padding: 1rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 0.8rem; font-family: inherit; }
-        .trip-card { background: #eff6ff; border: 1px solid #bfdbfe; padding: 1rem; border-radius: 16px; }
+        /* INPUTS TIPO UBER */
+        .input-group { background: #f9f9f9; padding: 15px; border-radius: 12px; margin-bottom: 15px; position: relative; }
+        .input-row { display: flex; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .input-row:last-child { margin-bottom: 0; border: none; padding-bottom: 0; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
+        .address-inp { border: none; background: transparent; width: 100%; font-size: 14px; font-weight: 500; outline: none; }
         
-        .loader-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; align-items: center; justify-content: center; }
+        /* TARJETAS TIPO VIAJE */
+        .type-card { 
+            display: flex; align-items: center; padding: 15px; border: 2px solid #eee; 
+            border-radius: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .type-card.selected { border-color: var(--primary); background: #fdfdfd; }
+        .type-img { font-size: 24px; margin-right: 15px; }
+        .type-info { flex: 1; }
+        .type-price { font-weight: 700; font-size: 16px; }
+
+        /* BOTÓN PRINCIPAL */
+        .btn-black { 
+            background: var(--primary); color: white; width: 100%; padding: 16px; 
+            border: none; border-radius: 12px; font-weight: 700; font-size: 16px; 
+            margin-top: 10px; cursor: pointer; 
+        }
+        .btn-black:disabled { background: #ccc; }
+
+        /* MODAL CALIFICACIÓN */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; display: none; align-items: center; justify-content: center; }
+        .modal-box { background: white; width: 85%; border-radius: 20px; padding: 25px; text-align: center; }
+        .stars { font-size: 32px; color: #ddd; margin: 15px 0; }
+        .stars span.active { color: #FFD700; }
+
+        /* UTILIDADES */
         .hidden { display: none !important; }
+        .loader { position: fixed; inset: 0; background: white; z-index: 200; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
-    <div id="loader" class="loader-overlay">Cargando...</div>
+    <div id="loader" class="loader">Cargando...</div>
 
-    <div class="header">
-        <button class="menu-btn">☰</button>
+    <div id="map"></div>
+
+    <div class="header-float">
+        <div class="user-pill">👤 <span id="userName">...</span></div>
     </div>
 
-    <div id="view-home" class="view-section active" style="position:relative; height:100%">
-        <div id="map"></div>
-        
-        <div class="bottom-sheet" id="homeSheet">
-            <div class="sheet-handle" onclick="toggleSheet()"><div class="sheet-bar"></div></div>
-            <div class="sheet-content">
-                <div id="tripForm">
-                    <h2 style="margin:0 0 1rem 0">¿A dónde vamos?</h2>
-                    <input type="text" id="origenDir" class="address-input" readonly placeholder="📍 Origen" onclick="seleccionarOrigen()">
-                    <input type="text" id="destinoDir" class="address-input" readonly placeholder="🏁 Destino" onclick="seleccionarDestino()">
-                    
-                    <div id="resumenCarrera" class="hidden" style="background:#f8fafc; padding:1rem; border-radius:12px; margin-top:0.5rem; border:1px solid #e2e8f0;">
-                        <div style="display:flex; justify-content:space-between"><span>Distancia:</span> <strong id="resDist">0 km</strong></div>
-                        <div style="display:flex; justify-content:space-between; margin-top:0.5rem; color:var(--primary); font-size:1.2rem"><span>Total:</span> <strong id="resPrice">L 0.00</strong></div>
+    <div class="sheet" id="mainSheet">
+        <div class="sheet-handle" onclick="toggleSheet()"><div class="sheet-bar"></div></div>
+        <div class="sheet-content">
+            
+            <div id="view-home" class="view active">
+                <div id="state-idle">
+                    <h2 style="margin:0 0 15px 0">¿A dónde vas?</h2>
+                    <div class="input-group">
+                        <div class="input-row">
+                            <div class="dot" style="background:black"></div>
+                            <input type="text" id="origin" class="address-inp" placeholder="Tu ubicación" readonly onclick="setMode('origen')">
+                        </div>
+                        <div class="input-row">
+                            <div class="dot" style="background:#FBC02D"></div>
+                            <input type="text" id="dest" class="address-inp" placeholder="Ingresa destino" readonly onclick="setMode('destino')">
+                        </div>
                     </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:1rem">
-                        <button class="type-btn active" onclick="setTipo('directo')" style="padding:0.8rem; border:2px solid #2563eb; background:#eff6ff; border-radius:12px">🏍️ Directo</button>
-                        <button class="type-btn" onclick="setTipo('colectivo')" style="padding:0.8rem; border:1px solid #e5e7eb; background:white; border-radius:12px">🚐 Colectivo</button>
+                    <div id="rideSelector" class="hidden">
+                        <div class="type-card selected" onclick="selectType('directo', this)">
+                            <div class="type-img">🏍️</div>
+                            <div class="type-info"><div>Directo</div><small class="text-gray">Más rápido</small></div>
+                            <div class="type-price" id="price-direct">L --</div>
+                        </div>
+                        <div class="type-card" onclick="selectType('colectivo', this)">
+                            <div class="type-img">🚌</div>
+                            <div class="type-info"><div>Colectivo</div><small style="color:green">Ahorra 30%</small></div>
+                            <div class="type-price" id="price-pool">L --</div>
+                        </div>
+                        <button id="btnRequest" class="btn-black" onclick="pedirViaje()">Confirmar Viaje</button>
                     </div>
-                    <input type="hidden" id="tipoCarrera" value="directo">
-
-                    <button id="btnSolicitar" class="btn-primary" disabled onclick="solicitarCarrera()">Pedir Mototaxi</button>
                 </div>
 
-                <div id="tripStatus" class="hidden">
-                    <div id="statusContent"></div>
+                <div id="state-active" class="hidden">
+                    <div style="text-align:center; padding: 20px 0;">
+                        <h3 id="statusTitle">Buscando conductor...</h3>
+                        <div id="driverInfo" class="hidden" style="margin-top:15px; text-align:left; background:#f9f9f9; padding:15px; border-radius:12px;">
+                            <div style="font-weight:bold; font-size:18px" id="drvName">Juan Perez</div>
+                            <div style="color:#666" id="drvMoto">Honda Roja • ABC-123</div>
+                            <div style="margin-top:10px; display:flex; gap:10px">
+                                <button onclick="llamarDriver()" style="flex:1; padding:8px; border:1px solid #ccc; background:white; border-radius:8px">📞 Llamar</button>
+                            </div>
+                        </div>
+                        <button onclick="cancelarViaje()" style="color:red; background:none; border:none; font-weight:bold; margin-top:20px; padding:10px">Cancelar</button>
+                    </div>
                 </div>
             </div>
+
+            <div id="view-history" class="view">
+                <h2>Mis Viajes</h2>
+                <div id="historyList"></div>
+            </div>
+
+            <div id="view-profile" class="view">
+                <h2>Mi Perfil</h2>
+                <div style="background:#f9f9f9; padding:20px; border-radius:12px">
+                    <h3 id="profileName">Usuario</h3>
+                    <button onclick="logout()" style="width:100%; padding:12px; background:#ffebee; color:#c62828; border:none; border-radius:8px; font-weight:bold; margin-top:20px">Cerrar Sesión</button>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <div id="view-history" class="view-section" style="padding:2rem; overflow-y:auto; padding-bottom:80px">
-        <h2>Historial de Viajes</h2>
-        <div id="historialLista">Cargando...</div>
+    <div class="nav-bar">
+        <div class="nav-item active" onclick="nav('home', this)"><span class="nav-icon">🏠</span>Inicio</div>
+        <div class="nav-item" onclick="nav('history', this)"><span class="nav-icon">📜</span>Historial</div>
+        <div class="nav-item" onclick="nav('profile', this)"><span class="nav-icon">👤</span>Perfil</div>
     </div>
 
-    <div id="view-profile" class="view-section" style="padding:2rem">
-        <h2>Mi Perfil</h2>
-        <div style="background:white; padding:1.5rem; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,0.05)">
-            <h3 id="profileName">Usuario</h3>
-            <button onclick="cerrarSesion()" class="btn-primary" style="background:#fee2e2; color:#dc2626; margin-top:2rem">Cerrar Sesión</button>
-        </div>
-    </div>
-
-    <div class="nav-tabs">
-        <div class="nav-item active" onclick="switchTab('home')">
-            <span class="nav-icon">🏠</span><span>Inicio</span>
-        </div>
-        <div class="nav-item" onclick="switchTab('history')">
-            <span class="nav-icon">🕒</span><span>Historial</span>
-        </div>
-        <div class="nav-item" onclick="switchTab('profile')">
-            <span class="nav-icon">👤</span><span>Perfil</span>
-        </div>
-    </div>
-
-    <div id="modalMapSelect" class="hidden" style="position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; display:flex; align-items:center; justify-content:center">
-        <div style="background:white; padding:2rem; border-radius:16px; text-align:center">
-            <h3>Toca en el mapa</h3>
-            <p>Selecciona la ubicación</p>
+    <div id="rateModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>¡Llegaste!</h3>
+            <p>Califica tu viaje</p>
+            <div class="stars">
+                <span onclick="star(1)">★</span><span onclick="star(2)">★</span><span onclick="star(3)">★</span><span onclick="star(4)">★</span><span onclick="star(5)">★</span>
+            </div>
+            <button class="btn-black" onclick="sendRate()">Enviar</button>
         </div>
     </div>
 
@@ -127,15 +176,16 @@
     <script src="../shared/config.js"></script>
     <script src="app.js"></script>
     <script>
-        function switchTab(tab) {
-            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
-            document.getElementById('view-'+tab).classList.add('active');
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-            if(tab === 'history') cargarHistorial();
+        function nav(v, el) {
+            document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+            document.getElementById('view-'+v).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+            el.classList.add('active');
+            if(v==='history') cargarHistorial();
         }
-        function toggleSheet() {
-            const s = document.getElementById('homeSheet');
+        function star(n) { window.rateVal=n; document.querySelectorAll('.stars span').forEach((s,i)=>s.style.color=i<n?'#FBC02D':'#ddd'); }
+        function toggleSheet() { 
+            const s = document.getElementById('mainSheet'); 
             s.style.transform = s.style.transform === 'translateY(80%)' ? 'translateY(0)' : 'translateY(80%)';
         }
     </script>
