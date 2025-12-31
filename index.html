@@ -3,282 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cliente - Mototaxis</title>
+    <title>Mototaxis Cliente</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="shared/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* RESET & BASICS */
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        :root { --primary: #2563eb; --surface: #ffffff; --bg: #f3f4f6; --text: #1f2937; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         
         /* HEADER */
-        .header {
-            background: #2563eb; color: white; padding: 0 1rem; 
-            height: 60px; display: flex; justify-content: space-between; align-items: center; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 2000;
+        .header { background: var(--surface); padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 20; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.25rem; margin: 0; color: var(--primary); font-weight: 700; }
+        .btn-logout { background: #fee2e2; color: #dc2626; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+
+        /* MAPA & LAYOUT */
+        .main-container { flex: 1; position: relative; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+
+        /* PANEL INFERIOR (Floating Card) */
+        .bottom-panel {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: var(--surface); border-radius: 24px 24px 0 0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1); z-index: 10;
+            padding: 1.5rem; max-height: 80vh; overflow-y: auto;
+            transition: transform 0.3s ease;
         }
+
+        /* ESTADOS */
+        .status-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 1.25rem; margin-bottom: 1rem; }
+        .driver-info { display: flex; align-items: center; gap: 12px; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #dbeafe; }
+        .driver-avatar { width: 48px; height: 48px; background: #bfdbfe; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
         
-        /* LAYOUT PRINCIPAL */
-        .container {
-            flex: 1;
-            display: flex;
-            position: relative;
-            height: calc(100vh - 60px);
-            overflow: hidden;
-        }
-        
-        /* MAPA (Fondo) */
-        .map-container {
-            flex: 1;
-            position: relative;
-            z-index: 1;
-        }
-        #map { width: 100%; height: 100%; }
-
-        /* SIDEBAR / BOTTOM SHEET */
-        .sidebar {
-            width: 400px;
-            background: white;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        }
-
-        /* Handle para móviles (Barrita gris para arrastrar) */
-        .sheet-handle {
-            display: none; /* Oculto en escritorio */
-            width: 100%;
-            height: 24px;
-            background: white;
-            justify-content: center;
-            align-items: center;
-            border-radius: 20px 20px 0 0;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .sheet-handle-bar {
-            width: 40px;
-            height: 4px;
-            background: #cbd5e1;
-            border-radius: 2px;
-        }
-
-        /* Contenido Scrolleable del Sidebar */
-        .sidebar-content {
-            padding: 1.5rem;
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        /* TABS */
-        .tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 1rem; }
-        .tab-btn { flex: 1; padding: 0.75rem; background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; font-weight: 600; color: #6b7280; transition: 0.2s; }
-        .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
-        .tab-pane { display: none; animation: fadeIn 0.3s; }
-        .tab-pane.active { display: block; }
+        /* BOTONES */
+        .btn-primary { background: var(--primary); color: white; width: 100%; padding: 1rem; border: none; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(37,99,235,0.2); }
+        .btn-secondary { background: white; color: var(--text); border: 1px solid #e5e7eb; }
+        .btn-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; width: 100%; padding: 0.75rem; border-radius: 12px; font-weight: 600; margin-top: 0.5rem; cursor: pointer; }
 
         /* MODAL */
-        .modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;
-        }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
         .modal.active { display: flex; }
-        .modal-content {
-            background: white; border-radius: 1rem; width: 90%; max-width: 500px;
-            max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;
-        }
-        .modal-body { padding: 1.5rem; }
-        .modal-footer { padding: 1rem; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 0.5rem; }
+        .modal-card { background: white; width: 90%; max-width: 400px; border-radius: 24px; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        
+        .address-input { background: #f9fafb; border: 1px solid #e5e7eb; padding: 0.75rem; border-radius: 12px; width: 100%; margin-bottom: 0.5rem; font-size: 0.9rem; }
+        .trip-type-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 1rem 0; }
+        .type-option { padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .type-option.active { border-color: var(--primary); background: #eff6ff; }
 
-        /* ESTILOS DE TARJETAS */
-        .card { background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .tipo-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-        .tipo-card { padding: 1rem; border: 2px solid #e5e7eb; border-radius: 0.5rem; cursor: pointer; text-align: center; }
-        .tipo-card.active { border-color: #2563eb; background: #eff6ff; }
-
-        /* ANIMACIONES */
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .pulse-ring { width: 40px; height: 40px; border-radius: 50%; background: #dbeafe; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; position: relative; }
-        .pulse-ring::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 3px solid #3b82f6; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
-
-        /* =========================================
-           RESPONSIVE MOBILE (Estilo Bottom Sheet)
-           ========================================= */
-        @media (max-width: 768px) {
-            .container { flex-direction: column; }
-            
-            /* El mapa ocupa todo el fondo */
-            .map-container {
-                position: absolute;
-                top: 0; left: 0;
-                width: 100%; height: 100%;
-                z-index: 0;
-            }
-
-            /* El sidebar se convierte en panel deslizante */
-            .sidebar {
-                position: absolute;
-                bottom: 0; left: 0;
-                width: 100%;
-                height: auto;
-                max-height: 85vh; /* Máximo alto expandido */
-                background: white;
-                border-radius: 20px 20px 0 0;
-                box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-                transition: transform 0.3s ease;
-                z-index: 1000;
-                display: flex;
-                flex-direction: column;
-            }
-
-            /* Estado colapsado (solo se ve un poco) */
-            .sidebar.collapsed {
-                transform: translateY(calc(100% - 180px)); /* Muestra 180px */
-            }
-            
-            /* Estado expandido */
-            .sidebar.expanded {
-                transform: translateY(0);
-            }
-
-            /* Mostrar la barra de arrastre */
-            .sheet-handle { display: flex; }
-
-            /* Ajustar padding para scroll seguro en móviles */
-            .sidebar-content {
-                padding-bottom: 80px; /* Espacio extra abajo para el scroll */
-                overflow-y: auto;
-                max-height: 80vh;
-            }
-        }
+        /* UTILS */
+        .hidden { display: none !important; }
+        .text-sm { font-size: 0.875rem; color: #6b7280; }
+        .font-bold { font-weight: 700; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        
+        .loader-overlay { position: fixed; inset: 0; background: white; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div id="loader" class="loader-fullscreen"><div class="loader"></div><p>Cargando...</p></div>
-    
+    <div id="loader" class="loader-overlay"><div class="spinner"></div><p style="margin-top:1rem;color:#6b7280;font-weight:500">Cargando...</p></div>
+
     <header class="header">
-        <h3>🏍️ Mototaxis</h3>
-        <div style="display:flex; align-items:center; gap:10px">
-            <span id="welcomeMsg" style="font-size:0.8rem; display:none;"></span>
-            <button class="btn btn-sm btn-danger" onclick="window.supabaseClient.auth.signOut().then(()=>window.location.href='login.html')">Salir</button>
-        </div>
+        <h1>🚖 Mototaxis</h1>
+        <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
     </header>
-    
-    <div class="container">
-        <aside class="sidebar collapsed" id="mainSidebar">
-            <div class="sheet-handle" onclick="toggleSidebar()">
-                <div class="sheet-handle-bar"></div>
+
+    <div class="main-container">
+        <div id="map"></div>
+        
+        <div class="bottom-panel" id="mainPanel">
+            <div id="panelSinViaje">
+                <h2 style="margin:0 0 0.5rem 0; font-size:1.25rem">¿A dónde vamos?</h2>
+                <p class="text-sm" style="margin-bottom:1.5rem">Solicita una mototaxi segura y rápida.</p>
+                <button class="btn-primary" onclick="abrirModalCarrera()">📍 Solicitar Nuevo Viaje</button>
             </div>
 
-            <div class="sidebar-content">
-                <button class="btn btn-primary btn-block mb-2" onclick="abrirModalCarrera()" style="padding: 1rem; font-size: 1.1rem; width:100%">
-                    📍 Solicitar Nuevo Viaje
-                </button>
-                
-                <div class="tabs">
-                    <button class="tab-btn active" data-tab="activa" onclick="cambiarTab('activa')">Viaje Actual</button>
-                    <button class="tab-btn" data-tab="historial" onclick="cambiarTab('historial')">Historial</button>
-                </div>
-                
-                <div id="tab-activa" class="tab-pane active">
-                    <div id="searchingAnimation" class="hidden" style="text-align:center; padding:1rem;">
-                        <div class="pulse-ring">🔍</div>
-                        <h3>Buscando...</h3>
-                    </div>
-                    <div id="carreraActiva">
-                        <p style="text-align:center; color:#6b7280; margin-top:1rem">No tienes viajes activos</p>
-                    </div>
-                </div>
-                
-                <div id="tab-historial" class="tab-pane">
-                    <div id="historialCarreras"></div>
-                </div>
-            </div>
-        </aside>
-        
-        <main class="map-container">
-            <div id="map"></div>
-        </main>
-    </div>
-    
-    <div id="modalCarrera" class="modal">
-        <div class="modal-content">
-            <div style="padding:1rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center">
-                <h2>Nuevo Viaje</h2>
-                <button onclick="cerrarModal()" style="border:none; background:none; font-size:1.5rem">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="tipo-selector">
-                    <div class="tipo-card active" onclick="seleccionarTipo('directo')">⚡ Directo</div>
-                    <div class="tipo-card" onclick="seleccionarTipo('colectivo')">👥 Colectivo <br><small style="color:green">-30%</small></div>
-                </div>
-                <input type="hidden" id="tipoCarrera" value="directo">
-                
-                <div class="form-group" style="margin-bottom:1rem">
-                    <label>Origen</label>
-                    <div style="display:flex; gap:5px">
-                        <input type="text" class="form-input" id="origenDir" readonly placeholder="Seleccionar en mapa" style="width:100%; padding:0.5rem">
-                        <button class="btn btn-secondary" onclick="seleccionarOrigen()">📍</button>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Destino</label>
-                    <div style="display:flex; gap:5px">
-                        <input type="text" class="form-input" id="destinoDir" readonly placeholder="Seleccionar en mapa" style="width:100%; padding:0.5rem">
-                        <button class="btn btn-secondary" onclick="seleccionarDestino()">🏁</button>
-                    </div>
-                </div>
-                
-                <div id="resumenCarrera" style="display:none; background:#f9fafb; padding:1rem; margin-top:1rem; border-radius:0.5rem">
-                    <div style="display:flex; justify-content:space-between"><span>Distancia:</span><strong id="resDistancia">-</strong></div>
-                    <div style="display:flex; justify-content:space-between"><span>Tiempo:</span><strong id="resTiempo">-</strong></div>
-                    <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:0.5rem; color:#2563eb"><span>Total:</span><strong id="resPrecio">-</strong></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="cerrarModal()">Cancelar</button>
-                <button class="btn btn-primary" disabled onclick="solicitarCarrera()">Pedir Mototaxi</button>
+            <div id="panelConViaje" class="hidden">
+                <div id="statusContent"></div>
             </div>
         </div>
     </div>
 
-    <div id="toast-container"></div>
-    <audio id="notificationSound" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU..."></audio>
+    <div id="modalCarrera" class="modal">
+        <div class="modal-card">
+            <div class="flex-between" style="margin-bottom:1.5rem">
+                <h2 style="margin:0">Nuevo Viaje</h2>
+                <button onclick="cerrarModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button>
+            </div>
+            
+            <div class="trip-type-selector">
+                <div class="type-option active" onclick="seleccionarTipo('directo')">
+                    <div style="font-size:1.5rem">🏍️</div>
+                    <div style="font-weight:600">Directo</div>
+                </div>
+                <div class="type-option" onclick="seleccionarTipo('colectivo')">
+                    <div style="font-size:1.5rem">🚐</div>
+                    <div style="font-weight:600">Colectivo</div>
+                    <div style="font-size:0.75rem;color:#10b981">-30% OFF</div>
+                </div>
+            </div>
+            <input type="hidden" id="tipoCarrera" value="directo">
+
+            <div style="margin-bottom:1rem">
+                <label class="text-sm font-bold">Origen</label>
+                <div style="display:flex;gap:8px">
+                    <input type="text" id="origenDir" class="address-input" readonly placeholder="Toca en el mapa..." value="Mi Ubicación Actual">
+                    <button onclick="seleccionarOrigen()" style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;width:40px;cursor:pointer">📍</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom:1.5rem">
+                <label class="text-sm font-bold">Destino</label>
+                <div style="display:flex;gap:8px">
+                    <input type="text" id="destinoDir" class="address-input" readonly placeholder="Selecciona destino...">
+                    <button onclick="seleccionarDestino()" style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;width:40px;cursor:pointer">🏁</button>
+                </div>
+            </div>
+
+            <div id="resumenCarrera" class="hidden" style="background:#f9fafb;padding:1rem;border-radius:12px;margin-bottom:1.5rem">
+                <div class="flex-between" style="margin-bottom:0.5rem"><span class="text-sm">Distancia</span><strong id="resDist">0 km</strong></div>
+                <div class="flex-between" style="margin-bottom:0.5rem"><span class="text-sm">Tiempo est.</span><strong id="resTime">0 min</strong></div>
+                <div class="flex-between" style="font-size:1.2rem;color:var(--primary);margin-top:0.5rem"><span>Total</span><strong id="resPrice">L 0.00</strong></div>
+            </div>
+
+            <button id="btnSolicitar" class="btn-primary" disabled onclick="solicitarCarrera()">Confirmar Viaje</button>
+        </div>
+    </div>
+
+    <audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.m4a"></audio>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
-    <script src="shared/config.js"></script>
+    <script src="../shared/config.js"></script>
     <script src="app.js"></script>
-
-    <script>
-        // Lógica simple de UI para móviles
-        function toggleSidebar() {
-            const sb = document.getElementById('mainSidebar');
-            if (sb.classList.contains('collapsed')) {
-                sb.classList.remove('collapsed');
-                sb.classList.add('expanded');
-            } else {
-                sb.classList.remove('expanded');
-                sb.classList.add('collapsed');
-            }
-        }
-        
-        function expandSidebar() {
-            const sb = document.getElementById('mainSidebar');
-            sb.classList.remove('collapsed');
-            sb.classList.add('expanded');
-        }
-
-        function cambiarTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('tab-' + tab).classList.add('active');
-            // Al cambiar tab, expandimos para ver contenido
-            expandSidebar();
-        }
-    </script>
 </body>
 </html>
