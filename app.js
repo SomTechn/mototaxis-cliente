@@ -1,13 +1,14 @@
 // ============================================
-// APP CLIENTE - MOTOTAXIS (VERSIÓN COMPLETA)
+// APP CLIENTE - MOTOTAXIS (VERSIÓN FINAL V2)
 // ============================================
 
 console.log('=== INICIANDO APP CLIENTE ===');
 
-// Variables Globales
+// --- VARIABLES GLOBALES ---
 let mapa, usuario, clienteId;
 let carreraActiva = null;
-let origenMarker = null, destinoMarker = null, rutaLayer = null, conductorMarker = null, ubicacionActualMarker = null;
+let origenMarker = null, destinoMarker = null, rutaLayer = null, conductorMarker = null;
+let ubicacionActualMarker = null; // Punto azul GPS
 let modoSeleccion = null;
 let origenCoords = null, destinoCoords = null;
 let trackingInterval = null;
@@ -30,6 +31,9 @@ async function init() {
         inicializarMapa();
         inicializarEventos();
         
+        // Inyectar estilos CSS para la animación pequeña
+        inyectarEstilosAnimacion();
+
         // Cargar configuración de precios
         if (typeof PRICING_CONFIG !== 'undefined') {
             await PRICING_CONFIG.cargarDesdeDB();
@@ -109,7 +113,6 @@ async function cargarDatosCliente() {
         .single();
         
     if (error || !cliente) {
-        // Auto-crear cliente si no existe
         console.log('Creando registro de cliente...');
         const { data: newCliente, error: createError } = await window.supabaseClient
             .from('clientes')
@@ -142,28 +145,22 @@ function inicializarMapa() {
         if (modoSeleccion) seleccionarUbicacion(e.latlng);
     });
 
-    // Buscar ubicación real del usuario
     obtenerUbicacionActual();
 }
 
 function obtenerUbicacionActual() {
     if (!navigator.geolocation) {
-        mostrarNotificacion('⚠️ GPS no soportado en este navegador');
+        mostrarNotificacion('⚠️ GPS no soportado');
         return;
     }
-
-    mostrarNotificacion('📍 Buscando tu ubicación...');
 
     navigator.geolocation.getCurrentPosition(
         (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
-            const precision = position.coords.accuracy;
-
-            // 1. Mover mapa
+            
             mapa.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
 
-            // 2. Icono Punto Azul
             const puntoAzulHtml = `
                 <div style="background-color:#4285F4; width:15px; height:15px; border-radius:50%; border:2px solid white; box-shadow:0 0 0 10px rgba(66,133,244,0.2);"></div>
             `;
@@ -177,16 +174,13 @@ function obtenerUbicacionActual() {
             if (ubicacionActualMarker) mapa.removeLayer(ubicacionActualMarker);
             ubicacionActualMarker = L.marker([lat, lng], { icon: iconPunto }).addTo(mapa);
             
-            // 3. Auto-llenar origen si está vacío
             if (!origenCoords) {
-                setTimeout(() => {
-                    seleccionarUbicacion({ lat, lng }, true);
-                }, 2000);
+                setTimeout(() => { seleccionarUbicacion({ lat, lng }, true); }, 2000);
             }
         },
         (error) => {
             console.warn('Error GPS:', error);
-            mostrarNotificacion('⚠️ No se pudo obtener tu ubicación. Activa el GPS.');
+            mostrarNotificacion('⚠️ Activa el GPS para mejor experiencia.');
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -322,7 +316,7 @@ async function solicitarCarrera() {
         if (error) throw error;
         
         cerrarModal();
-        limpiarSeleccion();
+        // NOTA: No limpiamos el mapa aquí para que el cliente vea la ruta mientras espera
         mostrarNotificacion('✅ Buscando conductor...');
         await cargarCarreraActiva();
         
@@ -346,13 +340,15 @@ async function cargarCarreraActiva() {
             .single();
             
         const container = document.getElementById('carreraActiva');
-        const searchingUI = document.getElementById('searchingAnimation');
+        // NOTA: Ya no usamos el div separado "searchingAnimation", usamos la tarjeta integrada
+        if (document.getElementById('searchingAnimation')) {
+             document.getElementById('searchingAnimation').classList.add('hidden');
+        }
         
         if (error && error.code === 'PGRST116') {
             carreraActiva = null;
             container.innerHTML = '<p style="text-align:center;color:#6b7280;margin-top:2rem">No tienes viajes en curso</p>';
             container.classList.remove('hidden');
-            searchingUI.classList.add('hidden');
             detenerTracking();
             return;
         }
@@ -362,14 +358,19 @@ async function cargarCarreraActiva() {
         if (data) {
             carreraActiva = data;
             
-            // Lógica Visual: BUSCANDO vs EN CURSO
+            // Si hay carrera activa y no tenemos la ruta dibujada (ej. recarga de pagina), intentar dibujarla
+            if (!rutaLayer && data.origen_lat && data.destino_lat) {
+                 // Recuperar ruta visualmente (opcional pero recomendado)
+                 origenCoords = { lat: data.origen_lat, lng: data.origen_lng };
+                 destinoCoords = { lat: data.destino_lat, lng: data.destino_lng };
+                 // Aquí podríamos volver a pintar marcadores, pero lo dejaremos simple por ahora
+            }
+
+            container.classList.remove('hidden');
+            
             if (data.estado === 'buscando' || data.estado === 'solicitada') {
-                searchingUI.classList.remove('hidden');
-                container.classList.remove('hidden');
-                mostrarTarjetaBusqueda(data);
+                mostrarTarjetaBusqueda(data); // Tarjeta compacta con animación
             } else {
-                searchingUI.classList.add('hidden');
-                container.classList.remove('hidden');
                 await mostrarCarreraActiva(data);
                 iniciarTracking(data);
             }
@@ -379,19 +380,25 @@ async function cargarCarreraActiva() {
     }
 }
 
+// Nueva tarjeta compacta con animación integrada
 function mostrarTarjetaBusqueda(carrera) {
     const html = `
         <div class="card" style="margin-top: 1rem; border-top: 4px solid #f59e0b;">
-            <h3>⏳ Buscando Conductor...</h3>
-            <p style="font-size: 0.9em; color: #666;">Tu solicitud está siendo transmitida a los conductores cercanos.</p>
-            
-            <div style="margin: 10px 0; padding: 10px; background: #f9fafb; border-radius: 8px;">
-                <p><strong>Destino:</strong> ${carrera.destino_direccion}</p>
-                <p><strong>Tarifa estimada:</strong> L ${carrera.precio}</p>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div class="mini-pulse-ring"></div> <h3 style="margin: 0; font-size: 1.1rem; color: #f59e0b;">Buscando Conductor...</h3>
             </div>
             
-            <button class="btn btn-danger" style="width:100%;" onclick="cancelarCarrera('${carrera.id}')">
-                Cancelar Solicitud
+            <p style="font-size: 0.85em; color: #666; margin-bottom: 10px;">
+                Conectando con mototaxis cercanas...
+            </p>
+            
+            <div style="margin: 10px 0; padding: 10px; background: #f9fafb; border-radius: 8px; font-size: 0.9em;">
+                <div style="margin-bottom: 5px;"><strong>📍 Destino:</strong> ${carrera.destino_direccion.substring(0, 30)}...</div>
+                <div><strong>💰 Precio:</strong> L ${carrera.precio}</div>
+            </div>
+            
+            <button class="btn btn-danger" style="width:100%; font-size: 0.9em; padding: 8px;" onclick="cancelarCarrera('${carrera.id}')">
+                ✕ Cancelar Solicitud
             </button>
         </div>
     `;
@@ -457,6 +464,7 @@ async function mostrarCarreraActiva(carrera) {
     document.getElementById('carreraActiva').innerHTML = html;
 }
 
+// Historial
 async function cargarHistorial() {
     try {
         const { data, error } = await window.supabaseClient
@@ -498,13 +506,42 @@ async function cancelarCarrera(id) {
     try {
         await window.supabaseClient.from('carreras')
             .update({ estado: 'cancelada_cliente' }).eq('id', id);
+        
         mostrarNotificacion('Viaje cancelado');
+        
+        // AQUÍ ESTÁ EL CAMBIO IMPORTANTE:
+        limpiarMapaCompleto(); // Borrar ruta y marcadores
+        
         await cargarCarreraActiva();
     } catch (e) {
         mostrarError(e.message);
     } finally {
         ocultarLoader();
     }
+}
+
+// Nueva función helper para limpiar todo el mapa
+function limpiarMapaCompleto() {
+    // 1. Borrar ruta
+    if (rutaLayer) {
+        mapa.removeLayer(rutaLayer);
+        rutaLayer = null;
+    }
+    // 2. Borrar marcadores origen/destino
+    if (origenMarker) {
+        mapa.removeLayer(origenMarker);
+        origenMarker = null;
+    }
+    if (destinoMarker) {
+        mapa.removeLayer(destinoMarker);
+        destinoMarker = null;
+    }
+    // 3. Resetear variables
+    origenCoords = null;
+    destinoCoords = null;
+    document.getElementById('origenDir').value = '';
+    document.getElementById('destinoDir').value = '';
+    document.getElementById('resumenCarrera').style.display = 'none';
 }
 
 // ============================================
@@ -573,8 +610,36 @@ function suscribirseACambios() {
 }
 
 // ============================================
-// 5. UTILIDADES
+// 5. UTILIDADES Y ESTILOS
 // ============================================
+
+function inyectarEstilosAnimacion() {
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .mini-pulse-ring {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #fcd34d;
+            position: relative;
+            display: inline-block;
+        }
+        .mini-pulse-ring::before {
+            content: '';
+            position: absolute;
+            left: -5px; top: -5px;
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            border: 2px solid #f59e0b;
+            animation: mini-pulse 1.5s infinite;
+        }
+        @keyframes mini-pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.2); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+}
 
 function mostrarLoader() { document.getElementById('loader').classList.remove('hidden'); }
 function ocultarLoader() { document.getElementById('loader').classList.add('hidden'); }
@@ -613,6 +678,8 @@ function inicializarEventos() {
 
 function abrirModalCarrera() { document.getElementById('modalCarrera').classList.add('active'); }
 function cerrarModal() { document.getElementById('modalCarrera').classList.remove('active'); limpiarSeleccion(); }
+
+// Limpieza para el modal de selección (no borra si ya hay ruta aceptada)
 function limpiarSeleccion() {
     if (modoSeleccion) return;
     document.getElementById('resumenCarrera').style.display = 'none';
