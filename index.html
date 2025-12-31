@@ -1,189 +1,51 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cliente</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root { --primary: #000000; --bg: #ffffff; }
-        body { font-family: 'Inter', sans-serif; margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; background: var(--bg); }
-        #map { position: absolute; inset: 0; z-index: 0; }
+<style>
+    /* ... (Tus estilos anteriores se mantienen) ... */
 
-        /* HEADER FLOTANTE */
-        .header-float { position: absolute; top: 1rem; left: 1rem; right: 1rem; z-index: 10; display: flex; justify-content: space-between; pointer-events: none; }
-        .menu-btn { pointer-events: auto; background: white; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: none; font-size: 1.5rem; cursor: pointer; }
+    /* NUEVOS ESTILOS PARA TIEMPOS DE LLEGADA */
+    .eta-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 15px;
+        margin-bottom: 15px;
+    }
+    .eta-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        padding: 10px;
+        border-radius: 12px;
+        text-align: center;
+    }
+    .eta-label {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-transform: uppercase;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .eta-value {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .eta-value.green { color: #16a34a; }
+    .eta-value.blue { color: #2563eb; }
 
-        /* SHEET DESLIZANTE */
-        .sheet {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            background: white; border-radius: 20px 20px 0 0;
-            box-shadow: 0 -5px 25px rgba(0,0,0,0.1); z-index: 40;
-            max-height: 85vh; display: flex; flex-direction: column;
-            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            padding-bottom: 20px;
-        }
-        .sheet.minimized { transform: translateY(calc(100% - 60px)); }
-
-        .sheet-handle { height: 30px; display: flex; justify-content: center; align-items: center; cursor: grab; }
-        .sheet-bar { width: 40px; height: 4px; background: #e0e0e0; border-radius: 2px; }
-        .sheet-content { padding: 0 20px; overflow-y: auto; }
-
-        /* INPUTS */
-        .input-group { background: #f9f9f9; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
-        .input-row { display: flex; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .input-row:last-child { margin-bottom: 0; border: none; padding-bottom: 0; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 12px; flex-shrink: 0; }
-        .address-inp { border: none; background: transparent; width: 100%; font-size: 14px; font-weight: 600; outline: none; text-overflow: ellipsis; }
-
-        /* RESUMEN TARIFA */
-        .fare-box { display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 15px; border-radius: 10px; margin-bottom: 15px; }
-        .fare-price { font-size: 1.5rem; font-weight: 800; color: #15803d; }
-
-        /* ESTADO BUSCANDO (ANIMACIÓN) */
-        .searching-box { text-align: center; padding: 20px 0; }
-        .pulse-radar { width: 60px; height: 60px; background: #e0f2fe; border-radius: 50%; margin: 0 auto 15px auto; display: flex; align-items: center; justify-content: center; position: relative; }
-        .pulse-radar::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 4px solid #3b82f6; animation: ripple 1.5s infinite; }
-        @keyframes ripple { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
-
-        /* BOTONES */
-        .btn-black { background: var(--primary); color: white; width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; margin-top: 10px; cursor: pointer; }
-        .btn-black:disabled { background: #ccc; }
-        .btn-red { background: #fee2e2; color: #dc2626; width: 100%; padding: 12px; border: none; border-radius: 12px; font-weight: 600; margin-top: 10px; cursor: pointer; }
-
-        /* DRAWER MENU */
-        .drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: none; }
-        .drawer { position: fixed; top: 0; left: -100%; width: 80%; height: 100%; background: white; z-index: 60; transition: 0.3s; padding: 2rem; display: flex; flex-direction: column; }
-        .drawer.open { left: 0; }
-        .nav-item { padding: 15px 0; border-bottom: 1px solid #f3f4f6; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 10px; }
-
-        /* MODAL CALIFICACIÓN */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        .modal-box { background: white; width: 85%; border-radius: 24px; padding: 25px; text-align: center; animation: popUp 0.3s; }
-        .stars { font-size: 36px; color: #e5e7eb; margin: 15px 0; display: flex; justify-content: center; gap: 5px; }
-        .stars span.active { color: #fbbf24; }
-
-        @keyframes popUp { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
-        .hidden { display: none !important; }
-        .loader { position: fixed; inset: 0; background: white; z-index: 200; display: flex; align-items: center; justify-content: center; }
-    </style>
-</head>
-<body>
-    <div id="loader" class="loader">Iniciando...</div>
-
-    <div id="map"></div>
-
-    <div class="header-float">
-        <button class="menu-btn" onclick="openDrawer()">☰</button>
-    </div>
-
-    <div class="sheet" id="mainSheet">
-        <div class="sheet-handle" onclick="toggleSheet()"><div class="sheet-bar"></div></div>
-        <div class="sheet-content">
-            
-            <div id="panelRequest">
-                <h2 style="margin:0 0 15px 0">¿A dónde vas?</h2>
-                <div class="input-group">
-                    <div class="input-row" onclick="focusInput('origen')">
-                        <div class="dot" style="background:black"></div>
-                        <input type="text" id="origenDir" class="address-inp" placeholder="Tu ubicación" readonly>
-                    </div>
-                    <div class="input-row" onclick="focusInput('destino')">
-                        <div class="dot" style="background:#FBC02D"></div>
-                        <input type="text" id="destinoDir" class="address-inp" placeholder="¿A dónde quieres ir?" readonly>
-                    </div>
-                </div>
-
-                <div id="tripDetails" class="hidden">
-                    <div class="fare-box">
-                        <div>
-                            <div style="font-size:12px; color:#666">ESTIMADO</div>
-                            <div style="font-weight:600" id="resDistTime">0 km • 0 min</div>
-                        </div>
-                        <div class="fare-price" id="resPrice">L --</div>
-                    </div>
-                    
-                    <div style="display:flex; gap:10px; margin-bottom:10px">
-                        <button class="btn-black" style="background:#f3f4f6; color:black; border:2px solid #2563eb" id="btnDirecto" onclick="setTipo('directo')">🏍️ Directo</button>
-                        <button class="btn-black" style="background:white; color:black; border:1px solid #ddd" id="btnColectivo" onclick="setTipo('colectivo')">🚐 Colectivo</button>
-                    </div>
-                    <input type="hidden" id="tipoCarrera" value="directo">
-
-                    <button id="btnSolicitar" class="btn-black" onclick="solicitarCarrera()">Confirmar Mototaxi</button>
-                </div>
-            </div>
-
-            <div id="panelActive" class="hidden">
-                <div class="searching-box">
-                    <div class="pulse-radar" id="radarAnim">🔎</div>
-                    <h2 id="statusTitle" style="color:#2563eb; margin:0 0 5px 0">Buscando...</h2>
-                    <p id="statusSub" style="color:#666; margin:0 0 20px 0">Contactando conductores cercanos</p>
-                    
-                    <div id="driverInfo" class="hidden" style="background:#f9f9f9; padding:15px; border-radius:16px; text-align:left; margin-bottom:15px">
-                        <div style="display:flex; justify-content:space-between; align-items:center">
-                            <div>
-                                <div style="font-weight:bold; font-size:18px" id="drvName">Conductor</div>
-                                <div style="color:#666" id="drvPlaca">...</div>
-                            </div>
-                            <div style="font-size:30px">🏍️</div>
-                        </div>
-                        <div style="margin-top:15px; display:grid; grid-template-columns:1fr 1fr; gap:10px">
-                            <button onclick="callDriver()" style="padding:10px; border-radius:8px; border:1px solid #ddd; background:white">📞 Llamar</button>
-                            <button onclick="alert('Funcionalidad Waze pendiente')" style="padding:10px; border-radius:8px; border:1px solid #ddd; background:white">🗺️ Ruta</button>
-                        </div>
-                    </div>
-
-                    <button class="btn-red" onclick="cancelarCarrera()">Cancelar Viaje</button>
-                </div>
-            </div>
-
-        </div>
-    </div>
-
-    <div class="drawer-overlay" onclick="closeDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
-            <h2>Menú</h2>
-            <button onclick="closeDrawer()" style="background:none; border:none; font-size:24px">✕</button>
-        </div>
-        <div id="profileName" style="margin-bottom:20px; color:#666">Usuario</div>
-        <div class="nav-item" onclick="verHistorial()">🕒 Historial de Viajes</div>
-        <div class="nav-item" style="color:#dc2626; margin-top:auto" onclick="logout()">Cerrar Sesión</div>
-    </div>
-
-    <div id="historyModal" class="modal-overlay">
-        <div class="modal-box" style="text-align:left; height:70vh; display:flex; flex-direction:column">
-            <h3>Mis Viajes</h3>
-            <div id="historyList" style="flex:1; overflow-y:auto; margin:10px 0">Cargando...</div>
-            <button class="btn-black" onclick="document.getElementById('historyModal').style.display='none'">Cerrar</button>
-        </div>
-    </div>
-
-    <div id="rateModal" class="modal-overlay">
-        <div class="modal-box">
-            <h3>¡Viaje Finalizado!</h3>
-            <p>Califica tu experiencia</p>
-            <div class="stars">
-                <span onclick="rate(1)">★</span><span onclick="rate(2)">★</span><span onclick="rate(3)">★</span><span onclick="rate(4)">★</span><span onclick="rate(5)">★</span>
-            </div>
-            <button class="btn-black" onclick="enviarCalificacion()">Enviar</button>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
-    <script src="../shared/config.js"></script>
-    <script src="app.js"></script>
-    <script>
-        // Función que faltaba
-        function toggleSheet() {
-            const s = document.getElementById('mainSheet');
-            s.classList.toggle('minimized');
-        }
-        
-        function openDrawer() { document.getElementById('drawer').classList.add('open'); document.querySelector('.drawer-overlay').style.display='block'; }
-        function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.querySelector('.drawer-overlay').style.display='none'; }
-    </script>
-</body>
-</html>
+    /* Ajuste para el conductor info */
+    .driver-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #f1f5f9;
+        margin-bottom: 10px;
+    }
+    .driver-avatar {
+        width: 50px; height: 50px;
+        background: #e0f2fe;
+        color: #0284c7;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem;
+    }
+</style>
