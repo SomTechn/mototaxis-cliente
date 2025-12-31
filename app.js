@@ -1,199 +1,117 @@
-// CLIENTE JS FINAL
-let mapa, usuario, clienteId, carreraActiva = null;
-let origenMarker, destinoMarker, rutaLayer, driverMarker;
-let coords = { origen: null, destino: null };
-let mode = null;
+let mapa, usuario, clienteId, carrera=null, coords={org:null, dst:null}, markers={org:null, dst:null}, mode=null, rutaLayer;
 
-async function init() {
+window.addEventListener('load', async () => {
     try {
-        await esperarSupabase();
+        await new Promise(r=>setTimeout(r,500));
+        if(!window.supabaseClient) throw new Error('Error DB');
         const { data: { session } } = await window.supabaseClient.auth.getSession();
-        if (!session) return window.location.href = 'login.html';
+        if(!session) return window.location.href='login.html';
         usuario = session.user;
 
-        await cargarPerfil();
+        await loadProfile();
         initMap();
-        
         if (typeof PRICING_CONFIG !== 'undefined') await PRICING_CONFIG.cargarDesdeDB();
-        
-        // Cargar estado inicial y suscribirse
-        await checkActiveTrip(); 
-        suscribirse();
-        
-        document.getElementById('loader').style.display = 'none';
-    } catch (e) { console.error(e); }
-}
+        await checkTrip();
+        sub();
+        document.getElementById('loader').classList.add('hidden');
+    } catch(e){ alert(e.message); }
+});
 
-// Soporte
-async function esperarSupabase() { return new Promise(r => { const i = setInterval(() => { if (window.supabaseClient) { clearInterval(i); r(); } }, 100); }); }
-async function cargarPerfil() {
+async function loadProfile() {
     let { data } = await window.supabaseClient.from('clientes').select('id, nombre').eq('perfil_id', usuario.id).maybeSingle();
-    if (!data) { const res = await window.supabaseClient.from('clientes').insert({ perfil_id: usuario.id, nombre: usuario.email.split('@')[0] }).select().single(); data = res.data; }
+    if(!data) { const res=await window.supabaseClient.from('clientes').insert({perfil_id:usuario.id}).select().single(); data=res.data; }
     clienteId = data.id;
     document.getElementById('profName').textContent = data.nombre || 'Usuario';
 }
 
-// Mapa
 function initMap() {
-    mapa = L.map('map', { zoomControl: false }).setView([15.5, -88], 13);
+    mapa = L.map('map', {zoomControl:false}).setView([15.5,-88], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(mapa);
-    
     mapa.on('click', e => {
-        if (!mode) return;
-        const latlng = e.latlng;
-        if (mode === 'origen') {
-            coords.origen = latlng;
-            if(origenMarker) mapa.removeLayer(origenMarker);
-            origenMarker = L.marker(latlng).addTo(mapa);
-            getAddr(latlng, 'origin');
-        } else {
-            coords.destino = latlng;
-            if(destinoMarker) mapa.removeLayer(destinoMarker);
-            destinoMarker = L.marker(latlng, {icon:L.divIcon({html:'🏁',className:'emoji'})}).addTo(mapa);
-            getAddr(latlng, 'dest');
+        if(mode) {
+            coords[mode] = e.latlng;
+            if(markers[mode]) mapa.removeLayer(markers[mode]);
+            markers[mode] = L.marker(e.latlng).addTo(mapa);
+            document.getElementById(mode).value = 'Ubicación seleccionada';
+            mode = null;
+            if(coords.org && coords.dst) calc();
         }
-        mode = null;
-        if(coords.origen && coords.destino) calcular();
     });
-
-    if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
-        const c = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+    if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>{
+        const c={lat:p.coords.latitude, lng:p.coords.longitude};
         mapa.setView(c, 15);
-        if(!coords.origen) {
-            coords.origen = c;
-            getAddr(c, 'origin');
-        }
+        if(!coords.org) { coords.org=c; document.getElementById('org').value='Tu Ubicación'; }
     });
 }
 
-function setPunto(m) { mode = m; alert('Toca el mapa para seleccionar ' + m); }
+// FUNCIONES GLOBALES
+window.setPunto = function(m) { mode=m; alert('Toca el mapa'); };
 
-async function getAddr(c, id) {
-    try {
-        document.getElementById(id).value = `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`; // Fallback
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${c.lat}&lon=${c.lng}`);
-        const d = await res.json();
-        if(d.display_name) document.getElementById(id).value = d.display_name.split(',')[0];
-    } catch(e){}
-}
+window.nav = function(v, el) {
+    document.getElementById('view-home').style.display = v==='home'?'block':'none';
+    document.querySelectorAll('.fs-view').forEach(x => x.classList.remove('active'));
+    if(v!=='home') document.getElementById('view-'+v).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    if(v==='history') loadHist();
+    if(v==='profile') document.getElementById('view-profile').classList.add('active');
+};
 
-async function calcular() {
+window.toggleMenu = function() { window.nav('profile', document.querySelectorAll('.nav-item')[2]); };
+
+async function calc() {
+    const btn=document.getElementById('btnReq'); btn.textContent='Calculando...';
     try {
-        const btn = document.getElementById('btnRequest');
-        btn.textContent = 'Calculando...';
-        const url = `https://router.project-osrm.org/route/v1/driving/${coords.origen.lng},${coords.origen.lat};${coords.destino.lng},${coords.destino.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const r = data.routes[0];
-        
+        const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords.org.lng},${coords.org.lat};${coords.dst.lng},${coords.dst.lat}?overview=full&geometries=geojson`);
+        const d = await r.json();
+        const km = d.routes[0].distance/1000;
+        const p = Math.max(30, km*15);
+        document.getElementById('priceLabel').textContent = 'L '+p.toFixed(0);
+        document.getElementById('priceBox').classList.remove('hidden');
+        btn.disabled=false; btn.textContent='Confirmar';
+        window.tripData = { km, p, time: Math.ceil(d.routes[0].duration/60) };
         if(rutaLayer) mapa.removeLayer(rutaLayer);
-        rutaLayer = L.geoJSON(r.geometry).addTo(mapa);
-        mapa.fitBounds(rutaLayer.getBounds(), {padding:[50,200]});
-
-        const dist = r.distance/1000;
-        const price = Math.max(30, dist*15); // Simple config
-        
-        document.getElementById('prices').classList.remove('hidden');
-        document.getElementById('priceLabel').textContent = 'L ' + price.toFixed(0);
-        
-        btn.textContent = 'Pedir Mototaxi';
-        btn.disabled = false;
-        btn.onclick = () => crearViaje(dist, Math.ceil(r.duration/60), price);
-        
-    } catch(e) { console.error(e); }
+        rutaLayer = L.geoJSON(d.routes[0].geometry).addTo(mapa);
+        mapa.fitBounds(rutaLayer.getBounds(), {padding:[50,50]});
+    } catch(e){ btn.textContent='Error ruta'; }
 }
 
-async function crearViaje(dist, time, price) {
+window.pedir = async function() {
     const { error } = await window.supabaseClient.from('carreras').insert({
-        cliente_id: clienteId, tipo: 'directo', precio: price, distancia_km: dist, tiempo_estimado_min: time,
-        origen_lat: coords.origen.lat, origen_lng: coords.origen.lng, origen_direccion: document.getElementById('origin').value,
-        destino_lat: coords.destino.lat, destino_lng: coords.destino.lng, destino_direccion: document.getElementById('dest').value,
-        estado: 'buscando'
+        cliente_id: clienteId, tipo:'directo', precio:window.tripData.p, distancia_km:window.tripData.km,
+        origen_lat:coords.org.lat, origen_lng:coords.org.lng, origen_direccion:document.getElementById('org').value,
+        destino_lat:coords.dst.lat, destino_lng:coords.dst.lng, destino_direccion:document.getElementById('dst').value,
+        estado:'buscando'
     });
-    if(!error) checkActiveTrip();
-}
+    if(!error) checkTrip();
+};
 
-// LOGICA ESTADOS UI
-async function checkActiveTrip() {
-    const { data } = await window.supabaseClient.from('carreras').select('*, conductores(perfiles(nombre, telefono), placa, modelo_moto)')
-        .eq('cliente_id', clienteId).in('estado', ['buscando','aceptada','en_camino','en_curso']).maybeSingle();
-    
-    carreraActiva = data;
-    renderState();
-}
-
-function renderState() {
-    const form = document.getElementById('requestForm');
-    const info = document.getElementById('tripInfo');
-    
-    if (!carreraActiva) {
-        form.style.display = 'block';
-        info.classList.remove('visible');
-        return;
-    }
-
-    // SI HAY VIAJE
-    form.style.display = 'none';
-    info.classList.add('visible');
-    
-    const title = document.getElementById('statusTitle');
-    const sub = document.getElementById('statusSub');
-    const det = document.getElementById('driverDetails');
-
-    if (carreraActiva.estado === 'buscando') {
-        title.textContent = '🔍 Buscando...';
-        sub.textContent = 'Estamos buscando conductores cercanos';
-        det.classList.add('hidden');
+async function checkTrip() {
+    const { data } = await window.supabaseClient.from('carreras').select('*, conductores(perfiles(nombre,telefono), placa, modelo_moto)').eq('cliente_id',clienteId).in('estado',['buscando','aceptada','en_camino','en_curso']).maybeSingle();
+    carrera=data;
+    const f=document.getElementById('reqForm'), t=document.getElementById('tripInfo');
+    if(data) {
+        f.style.display='none'; t.style.display='block';
+        const st = document.getElementById('stTitle');
+        const di = document.getElementById('drvInfo');
+        if(data.estado==='buscando') { st.textContent='🔍 Buscando...'; di.classList.add('hidden'); }
+        else {
+            st.textContent = data.estado==='en_curso' ? '🚀 En Viaje' : '🚕 Conductor viene';
+            di.classList.remove('hidden');
+            if(data.conductores) {
+                document.getElementById('dName').textContent = data.conductores.perfiles.nombre;
+                document.getElementById('dMoto').textContent = data.conductores.modelo_moto;
+                window.phone = data.conductores.perfiles.telefono;
+            }
+        }
     } else {
-        const c = carreraActiva.conductores;
-        title.textContent = carreraActiva.estado === 'en_curso' ? '🚀 En Viaje' : '🚕 Conductor en camino';
-        sub.textContent = 'Tu conductor llegará pronto';
-        det.classList.remove('hidden');
-        document.getElementById('drvName').textContent = c?.perfiles?.nombre || 'Conductor';
-        document.getElementById('drvPlate').textContent = `${c?.modelo_moto} • ${c?.placa}`;
-        document.getElementById('drvPrice').textContent = 'L ' + carreraActiva.precio;
-        window.phone = c?.perfiles?.telefono;
-        trackDriver(carreraActiva.conductor_id);
+        f.style.display='block'; t.style.display='none';
+        if(rutaLayer) mapa.removeLayer(rutaLayer);
     }
 }
 
-function suscribirse() {
-    window.supabaseClient.channel('cli').on('postgres_changes', { event: '*', schema: 'public', table: 'carreras', filter: `cliente_id=eq.${clienteId}` }, payload => {
-        if(payload.new.estado === 'completada') {
-            document.getElementById('rateModal').style.display = 'flex';
-            window.lastTrip = payload.new.id;
-            carreraActiva = null;
-            renderState();
-        } else {
-            checkActiveTrip();
-        }
-    }).subscribe();
-}
-
-function trackDriver(id) {
-    // Polling simple para mover el icono del conductor
-    setInterval(async () => {
-        const { data } = await window.supabaseClient.from('conductores').select('latitud,longitud').eq('id', id).single();
-        if(data) {
-            if(driverMarker) driverMarker.setLatLng([data.latitud, data.longitud]);
-            else driverMarker = L.marker([data.latitud, data.longitud], {icon:L.divIcon({html:'🏍️',className:'emoji'})}).addTo(mapa);
-        }
-    }, 5000);
-}
-
-// Acciones
-async function cancelar() {
-    if(confirm('Cancelar?')) await window.supabaseClient.from('carreras').update({estado:'cancelada_cliente'}).eq('id', carreraActiva.id);
-}
-function llamar() { window.open(`tel:${window.phone}`); }
-async function sendRate() {
-    await window.supabaseClient.from('carreras').update({calificacion_conductor: window.rateVal||5}).eq('id', window.lastTrip);
-    document.getElementById('rateModal').style.display = 'none';
-}
-async function loadHist() {
-    const { data } = await window.supabaseClient.from('carreras').select('*').eq('cliente_id', clienteId).eq('estado','completada').limit(10);
-    document.getElementById('histList').innerHTML = data.map(c => `<div style="padding:10px;border-bottom:1px solid #eee"><b>${new Date(c.fecha_solicitud).toLocaleDateString()}</b> - L${c.precio}<br><small>${c.destino_direccion}</small></div>`).join('');
-}
-async function logout() { await window.supabaseClient.auth.signOut(); window.location.href='login.html'; }
-
-window.addEventListener('load', init);
+window.cancelar = async function() { if(confirm('Cancelar?')) await window.supabaseClient.from('carreras').update({estado:'cancelada_cliente'}).eq('id',carrera.id); };
+window.llamar = function() { window.open(`tel:${window.phone}`); };
+window.logout = async function() { await window.supabaseClient.auth.signOut(); window.location.href='login.html'; };
+function sub() { window.supabaseClient.channel('cli').on('postgres_changes', {event:'*', schema:'public', table:'carreras', filter:`cliente_id=eq.${clienteId}`}, p=>{ if(p.new.estado==='completada') { alert('Llegaste!'); window.location.reload(); } else checkTrip(); }).subscribe(); }
+async function loadHist() { const { data } = await window.supabaseClient.from('carreras').select('*').eq('cliente_id', clienteId).eq('estado','completada').limit(10); document.getElementById('histList').innerHTML = data.map(c=>`<div style="padding:10px;border-bottom:1px solid #eee"><b>${new Date(c.fecha_solicitud).toLocaleDateString()}</b> - L${c.precio}<br><small>${c.destino_direccion}</small></div>`).join(''); }
