@@ -1,3 +1,4 @@
+// APP CLIENTE (FINAL V4)
 let mapa, usuario, clienteId, carreraActiva = null;
 let origenMarker, destinoMarker, rutaLayer, conductorMarker, userMarker;
 let origenCoords, destinoCoords, modoSeleccion;
@@ -6,16 +7,12 @@ let trackingInterval = null;
 async function init() {
     try {
         await esperarSupabase();
-        const { data: { session } } = await window.supabaseClient.auth.getSession();
-        if (!session) return window.location.href = 'login.html';
-        usuario = session.user;
-
-        await cargarPerfil();
-        inicializarMapa();
+        if (!await verificarSesion()) return;
+        await cargarDatosCliente();
         
+        inicializarMapa();
         if (typeof PRICING_CONFIG !== 'undefined') await PRICING_CONFIG.cargarDesdeDB();
         
-        // Carga estado inicial
         await cargarCarreraActiva();
         suscribirse();
         
@@ -24,8 +21,12 @@ async function init() {
 }
 
 async function esperarSupabase() { return new Promise(r => { const i = setInterval(() => { if (window.supabaseClient) { clearInterval(i); r(); } }, 100); }); }
-
-async function cargarPerfil() {
+async function verificarSesion() {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return false; }
+    usuario = session.user; return true;
+}
+async function cargarDatosCliente() {
     let { data } = await window.supabaseClient.from('clientes').select('id, nombre').eq('perfil_id', usuario.id).maybeSingle();
     if (!data) { const res = await window.supabaseClient.from('clientes').insert({ perfil_id: usuario.id, nombre: usuario.email.split('@')[0] }).select().single(); data = res.data; }
     clienteId = data.id;
@@ -33,27 +34,20 @@ async function cargarPerfil() {
 }
 
 function inicializarMapa() {
-    mapa = L.map('map', { zoomControl: false }).setView([15.5, -88], 13);
-    // MAPA CLARO Y DETALLADO (OSM HOT)
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapa);
-    
+    mapa = L.map('map', { zoomControl: false }).setView([15.5048, -88.0250], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapa);
     mapa.on('click', e => { if (modoSeleccion) setPunto(e.latlng); });
-
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const lat = pos.coords.latitude, lng = pos.coords.longitude;
-            mapa.setView([lat, lng], 15);
-            userMarker = L.marker([lat, lng], {icon: L.divIcon({className:'gps-dot', html:'<div style="width:16px;height:16px;background:#2563eb;border:2px solid white;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.3)"></div>'})}).addTo(mapa);
-            // Auto origen
-            if(!origenCoords) setPunto({lat, lng}, 'origen', true);
-        });
-    }
+    if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        mapa.setView([lat, lng], 15);
+        userMarker = L.marker([lat, lng], { icon: L.divIcon({className:'gps-dot', html:'<div style="width:16px;height:16px;background:#3b82f6;border:2px solid white;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.3)"></div>'}) }).addTo(mapa);
+        if(!origenCoords) setPunto({lat, lng}, 'origen', true);
+    });
 }
 
-// GESTIÓN DE PUNTOS
 function focusInput(modo) {
     modoSeleccion = modo;
-    document.getElementById('mainSheet').classList.add('minimized'); // Bajar panel para ver mapa
+    document.getElementById('mainSheet').classList.add('minimized');
 }
 
 function restoreSheet() {
@@ -110,47 +104,50 @@ async function calcularRuta() {
         const res = await fetch(url);
         const data = await res.json();
         
+        let dist = 0, time = 0;
+        
         if (data.routes?.[0]) {
             const r = data.routes[0];
-            const dist = r.distance/1000;
-            const time = Math.ceil(r.duration/60);
-            const tipo = document.getElementById('tipoCarrera').value;
-            const precio = PRICING_CONFIG.calcularPrecio(dist, tipo === 'colectivo');
-
-            document.getElementById('resDistTime').textContent = `${dist.toFixed(1)} km • ${time} min`;
-            document.getElementById('resPrice').textContent = `L ${precio.toFixed(0)}`;
+            dist = r.distance/1000;
+            time = Math.ceil(r.duration/60);
             
             if (rutaLayer) mapa.removeLayer(rutaLayer);
             rutaLayer = L.geoJSON(r.geometry, {style: {color:'black', weight:4}}).addTo(mapa);
             mapa.fitBounds(rutaLayer.getBounds(), {padding:[50,200]});
-
-            btn.textContent = 'Confirmar Mototaxi'; btn.disabled = false;
+        } else {
+            // Fallback lineal si falla OSRM
+            dist = Math.sqrt(Math.pow(destinoCoords.lat - origenCoords.lat, 2) + Math.pow(destinoCoords.lng - origenCoords.lng, 2)) * 111;
+            time = Math.ceil(dist * 3);
         }
-    } catch(e) { btn.textContent = 'Reintentar Ruta'; btn.disabled = false; }
+
+        const tipo = document.getElementById('tipoCarrera').value;
+        const precio = PRICING_CONFIG.calcularPrecio(dist, tipo === 'colectivo');
+
+        document.getElementById('resDistTime').textContent = `${dist.toFixed(1)} km • ${time} min`;
+        document.getElementById('resPrice').textContent = `L ${precio.toFixed(0)}`;
+        btn.textContent = 'Confirmar Mototaxi'; btn.disabled = false;
+
+    } catch(e) { btn.textContent = 'Error ruta (Reintentar)'; btn.disabled = false; }
 }
 
 async function solicitarCarrera() {
     const p = parseFloat(document.getElementById('resPrice').textContent.replace('L ',''));
     const distStr = document.getElementById('resDistTime').textContent.split(' km')[0];
-    const dist = parseFloat(distStr);
     
     // UI Instantánea
     document.getElementById('panelRequest').classList.add('hidden');
     document.getElementById('panelActive').classList.remove('hidden');
-    document.getElementById('statusTitle').textContent = "Buscando...";
 
-    const { data, error } = await window.supabaseClient.from('carreras').insert({
-        cliente_id: clienteId, tipo: document.getElementById('tipoCarrera').value, precio: p, distancia_km: dist,
+    const { error } = await window.supabaseClient.from('carreras').insert({
+        cliente_id: clienteId, tipo: document.getElementById('tipoCarrera').value, precio: p, distancia_km: parseFloat(distStr),
         origen_lat: origenCoords.lat, origen_lng: origenCoords.lng, origen_direccion: origenCoords.dir,
         destino_lat: destinoCoords.lat, destino_lng: destinoCoords.lng, destino_direccion: destinoCoords.dir,
         estado: 'buscando'
-    }).select().single();
+    });
 
-    if (error) { alert(error.message); cargarCarreraActiva(); } // Revertir si falla
-    else carreraActiva = data;
+    if (error) { alert(error.message); cargarCarreraActiva(); } else { cargarCarreraActiva(); }
 }
 
-// --- ESTADOS Y REALTIME ---
 async function cargarCarreraActiva() {
     const { data } = await window.supabaseClient.from('carreras').select('*, conductores(placa, modelo_moto, perfiles(nombre, telefono))')
         .eq('cliente_id', clienteId).in('estado',['buscando','aceptada','en_camino','en_curso']).maybeSingle();
@@ -163,6 +160,7 @@ function renderUI() {
     const req = document.getElementById('panelRequest');
     const act = document.getElementById('panelActive');
     const info = document.getElementById('driverInfo');
+    const radar = document.getElementById('radarAnim');
     
     if (!carreraActiva) {
         req.classList.remove('hidden');
@@ -180,26 +178,26 @@ function renderUI() {
     const sub = document.getElementById('statusSub');
 
     if (s === 'buscando') {
-        t.textContent = "🔍 Buscando...";
+        t.textContent = "🔎 Buscando...";
         sub.textContent = "Contactando conductores...";
         info.classList.add('hidden');
+        radar.innerHTML = "🔎";
     } else {
         info.classList.remove('hidden');
-        // Datos Conductor
         const c = carreraActiva.conductores;
         document.getElementById('drvName').textContent = c?.perfiles?.nombre || 'Conductor';
         document.getElementById('drvPlaca').textContent = `${c?.modelo_moto} • ${c?.placa}`;
         window.driverPhone = c?.perfiles?.telefono;
+        radar.innerHTML = s==='en_curso' ? '🚀' : '🚕';
         
-        // Iniciar Tracking
         if(carreraActiva.conductor_id) iniciarTracking(carreraActiva.conductor_id);
 
         if (s === 'en_curso') {
-            t.textContent = "🚀 En viaje";
+            t.textContent = "En viaje";
             sub.textContent = "Disfruta el recorrido";
         } else {
-            t.textContent = "🚕 Conductor en camino";
-            sub.textContent = "Llega en breves minutos";
+            t.textContent = "Conductor en camino";
+            sub.textContent = "Llega pronto";
         }
     }
 }
@@ -216,13 +214,13 @@ function iniciarTracking(driverId) {
 }
 
 function suscribirse() {
-    window.supabaseClient.channel('cli').on('postgres_changes', {event:'*', schema:'public', table:'carreras', filter:`cliente_id=eq.${clienteId}`}, payload => {
+    window.supabaseClient.channel('cli').on('postgres_changes', {event:'*', schema:'public', table:'carreras', filter:`cliente_id=eq.${clienteId}`}, 
+    payload => {
         const n = payload.new;
         if (n.estado === 'completada') {
-            carreraActiva = null;
             document.getElementById('rateModal').style.display = 'flex';
             window.lastTripId = n.id;
-            renderUI();
+            carreraActiva = null; // Limpiar para que UI regrese a inicio al cerrar modal
         } else {
             cargarCarreraActiva();
         }
@@ -233,7 +231,7 @@ async function enviarCalificacion() {
     const r = window.rateVal || 5;
     await window.supabaseClient.from('carreras').update({calificacion_conductor: r}).eq('id', window.lastTripId);
     document.getElementById('rateModal').style.display = 'none';
-    alert('¡Gracias!');
+    cargarCarreraActiva(); // Esto reseteará la UI a inicio
 }
 
 async function cancelarCarrera() {
@@ -243,13 +241,11 @@ async function cancelarCarrera() {
 }
 
 // UI Helpers
-function openDrawer() { document.getElementById('drawer').classList.add('open'); document.querySelector('.drawer-overlay').style.display='block'; }
-function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.querySelector('.drawer-overlay').style.display='none'; }
 function setTipo(t) { 
     document.getElementById('tipoCarrera').value = t;
     document.getElementById('btnDirecto').style.border = t==='directo'?'2px solid #2563eb':'1px solid #ddd';
     document.getElementById('btnColectivo').style.border = t==='colectivo'?'2px solid #2563eb':'1px solid #ddd';
-    calcularRuta();
+    if(origenCoords && destinoCoords) calcularRuta();
 }
 function callDriver() { window.open(`tel:${window.driverPhone}`); }
 async function verHistorial() {
